@@ -18,11 +18,13 @@ statnnet <- function(nn, X, B = 1000) {
 
   n <- nrow(nn$residuals)
 
+  y <- nn$fitted.values + nn$residuals
+
   class(nn) <- "statnnet"
 
   nn$BIC <- - 2 * nn_loglike(nn) + 2 * log(n)
 
-  wald <- wald_test(X, nn$fitted.values + nn$residuals, nn$wts, nn$n[2])
+  wald <- wald_test(X, y, nn$wts, nn$n[2])
 
   # Covariate effect and bootstrapped std. error
   nn$eff <- covariate_eff(X, nn$wts, nn$n[2])
@@ -40,6 +42,8 @@ statnnet <- function(nn, X, B = 1000) {
   nn$wald_chi <- wald$chisq
 
   nn$X <- X
+  nn$y <- y
+  nn$B <- B
 
   return(nn)
 
@@ -170,6 +174,7 @@ print.summary.statnnet <- function(x, ...) {
 #' @export
 plot.statnnet <-
   function (x, which = c(1L:ncol(x$X)), x_axis_r = c(-3, 3), x_axis_l = 101,
+            conf_int = FALSE, alpha = 0.05, B = x$B,
             caption = lapply(1:ncol(x$X),
                              function(iter) paste0("Covariate-Effect Plot for ",
                                                    colnames(x$X)[iter])),
@@ -183,6 +188,12 @@ plot.statnnet <-
     if(!is.numeric(which) || any(which < 1) || any(which > ncol(x$X)))
       stop(sprintf("'which' must be in 1:%s", ncol(x$X)))
 
+    if (conf_int == TRUE && is.null(alpha)) {
+      stop("'alpha' must be not be NULL when 'conf_int == TRUE'")
+    } else if (conf_int == TRUE && (alpha < 0 || alpha > 1 || length(alpha) != 1)) {
+      stop("'alpha' must be a value between 0 and 1")
+    }
+
     getCaption <- function(k) # allow caption = "" , plotmath etc
       if(length(caption) < k) NA_character_ else as.graphicsAnnot(caption[[k]])
 
@@ -194,6 +205,17 @@ plot.statnnet <-
                                                  iter,
                                                  x_r = x_axis_r,
                                                  len = x_axis_l))
+
+    conf_val <- vector("list", length = ncol(x$X))
+    for (i in 1:ncol(x$X)) {
+      if (conf_int == TRUE && show[i]) {
+        conf_val[[i]] <- mlesim(W = x$wts, X = x$X, y = x$y, q = x$n[2], ind =  i,
+                                FUN = pdp_effect, B = x$B,
+                                x_r = x_axis_r,
+                                len = x_axis_l)
+      }
+    }
+
 
     xaxis <- seq(x_axis_r[1], x_axis_r[2], length.out = x_axis_l)
 
@@ -207,12 +229,19 @@ plot.statnnet <-
     ##---------- Do the individual plots : ----------
     for (i in 1:ncol(x$X)) {
       if (show[i]) {
-        ylim <- range(cov_effs[[i]], na.rm = TRUE)
+
+        ylim <- range(c(cov_effs[[i]], conf_val[[i]]), na.rm = TRUE)
+
+
         if (ylim[1] > 0) ylim[1] = 0 else if (ylim[2] < 0) ylim[2] = 0
         dev.hold()
         plot(xaxis, cov_effs[[i]], xlab = labs[i], ylab = "Effect", main = main,
              ylim = ylim, type = "n", ...)
         lines(xaxis, cov_effs[[i]], ...)
+        if (conf_int == TRUE) {
+          lines(xaxis, conf_val[[i]]$upper, lty = 2, col = 2, ...)
+          lines(xaxis, conf_val[[i]]$lower, lty = 2, col = 2, ...)
+        }
         if (one.fig)
           title(sub = sub.caption, ...)
         mtext(getCaption(i), 3, 0.25, cex = cex.caption)
