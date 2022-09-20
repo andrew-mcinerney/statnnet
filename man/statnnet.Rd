@@ -4,10 +4,14 @@
 \alias{statnnet}
 \title{statnnet}
 \usage{
-statnnet(nn, X)
+statnnet(nn, X, B = 1000)
 }
 \arguments{
-\item{nnet}{nnet object}
+\item{nn}{nnet object}
+
+\item{X}{matrix of values for nnet}
+
+\item{B}{number of bootstrap replicates}
 }
 \value{
 statnnet object
