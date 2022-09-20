@@ -55,3 +55,47 @@ nn_loglike <- function(nn_model){
   return(log_like)
 
 }
+
+#' Difference in average prediction for values above and below median
+#'
+#'
+#' @param X Data
+#' @param W Weight vector
+#' @param q Number of hidden units
+#' @return Effect for each input
+#' @export
+covariate_eff <- function(X, W, q) {
+  eff <- rep(NA, ncol(X))
+  for (col in 1:ncol(X)) {
+    low <- X[X[, col] <= median(X[, col]), ]
+    high <- X[X[, col] > median(X[, col]), ]
+
+    eff[col] <- mean(nn_pred(high, W, q)) - mean(nn_pred(low, W, q))
+  }
+  names(eff) <- colnames(X)
+  return(eff)
+}
+
+#' Partial Dependence Plot for one std. dev. increase
+#'
+#'
+#' @param W Weight vector
+#' @param X Data
+#' @param q Number of hidden units
+#' @param ind index of column to plot
+#' @return Effect for each input
+#' @export
+pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301){
+  sd_m <- matrix(0, ncol = ncol(X), nrow = nrow(X))
+  sd_m[, ind] <- sd(X[, ind])
+
+  x <- seq(from = x_r[1], to = x_r[2], length.out = len)
+
+  eff <- rep(NA, len)
+
+  for (i in 1:len){
+    X[, ind] <- x[i]
+    eff[i] <- mean(nn_pred(X + sd_m, W, q) - nn_pred(X, W, q))
+  }
+  return(eff)
+}
