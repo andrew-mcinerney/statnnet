@@ -1,10 +1,12 @@
 #' statnnet
 #'
 #'
-#' @param nnet nnet object
+#' @param nn nnet object
+#' @param X matrix of values for nnet
+#' @param B number of bootstrap replicates
 #' @return statnnet object
 #' @export
-statnnet <- function(nn, X) {
+statnnet <- function(nn, X, B = 1000) {
 
   if (class(nn) != "nnet") {
     stop("Error: Argument must be of class nnet")
@@ -14,13 +16,28 @@ statnnet <- function(nn, X) {
     colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
   }
 
-  wald <- wald_test(X, nn$fitted.values + nn$residuals, nn$wts, nn$n[2])
+  n <- nrow(nn$residuals)
 
   class(nn) <- "statnnet"
+
+  nn$BIC <- - 2 * nn_loglike(nn) + 2 * log(n)
+
+  wald <- wald_test(X, nn$fitted.values + nn$residuals, nn$wts, nn$n[2])
+
+  # Covariate effect and bootstrapped std. error
+  nn$eff <- covariate_eff(X, nn$wts, nn$n[2])
+
+  nn$eff_se <- apply(replicate(B,
+                               covariate_eff(X[sample(n, size = n, replace = TRUE), ],
+                                             W = nn$wts,
+                                             q = nn$n[2])),
+                     1, sd)
+
 
   nn$cl <- match.call()
 
   nn$wald_p <- wald$p_value
+  nn$wald_chi <- wald$chisq
 
   nn$X <- X
 
@@ -88,27 +105,28 @@ summary.statnnet <- function(object, ...) {
 
   object$nconn <- nconn
 
-  object$BIC <- - 2 * nn_loglike(object) + 2 * log(nrow(nn$residuals))
-
   covariates <- colnames(object$X)
-
-  eff <- covariate_eff(object$X, object$wts, object$n[2])
 
   coefdf <- data.frame(
     Covariate = covariates,
-    Estimate = eff,
+    Estimate = object$eff,
+    Std.Error = object$eff_se,
+    Wald.chi = object$wald_chi,
     Wald.p.value = object$wald_p
   )
 
   colnames(coefdf)[1] <- ""
+  colnames(coefdf)[3] <- "Std. Error"
+  colnames(coefdf)[4] <- "  X^2"
+  colnames(coefdf)[5] <- "Pr(> X^2)"
 
   object$coefdf <- coefdf
 
   Signif <- symnum(object$wald_p, corr = FALSE, na = FALSE,
                    cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
                    symbols = c("***", "**", "*", ".", " "))
-  object$coefdf$Wald.p.value <- paste(
-    formatC(object$coefdf$Wald.p.value, format = "e", digits = 2),
+  object$coefdf$`Pr(> X^2)` <- paste(
+    formatC(object$coefdf$`Pr(> X^2)`, format = "e", digits = 2),
     format(Signif))
 
   class(object) <- c("summary.statnnet", class(object))
@@ -129,7 +147,8 @@ print.summary.statnnet <- function(x, ...) {
   cat("\n")
   cat("Coefficients:\n")
 
-  print(x$coefdf, right = TRUE, na.print = "NA", digits = 2, row.names = FALSE)
+  print(x$coefdf, right = TRUE, na.print = "NA",
+        digits =  max(3L, getOption("digits") - 2L), row.names = FALSE)
 
   Signif <- symnum(x$wald_p, corr = FALSE, na = FALSE,
                    cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
@@ -147,3 +166,61 @@ print.summary.statnnet <- function(x, ...) {
     function(x) print(x, quote = FALSE)
   )
 }
+
+#' @export
+plot.statnnet <-
+  function (x, which = c(1L:ncol(x$X)), x_axis_r = c(-3, 3), x_axis_l = 101,
+            caption = lapply(1:ncol(x$X),
+                             function(iter) paste0("Covariate-Effect Plot for ",
+                                                   colnames(x$X)[iter])),
+            sub.caption = NULL, main = "",
+            ask = prod(par("mfcol")) < length(which) && dev.interactive(), ...,
+            label.pos = c(4,2), cex.caption = 1, cex.oma.main = 1.25){
+
+    if (!inherits(x, "statnnet"))
+      stop("use only with \"statnnet\" objects")
+
+    if(!is.numeric(which) || any(which < 1) || any(which > ncol(x$X)))
+      stop(sprintf("'which' must be in 1:%s", ncol(x$X)))
+
+    getCaption <- function(k) # allow caption = "" , plotmath etc
+      if(length(caption) < k) NA_character_ else as.graphicsAnnot(caption[[k]])
+
+    show <- rep(FALSE, ncol(x$X))
+    show[which] <- TRUE
+
+    cov_effs <- lapply(1:ncol(x$X),
+                       function(iter) pdp_effect(x$wts, x$X, x$n[2],
+                                                 iter,
+                                                 x_r = x_axis_r,
+                                                 len = x_axis_l))
+
+    xaxis <- seq(x_axis_r[1], x_axis_r[2], length.out = x_axis_l)
+
+    labs <- colnames(x$X)
+
+    one.fig <- prod(par("mfcol")) == 1
+    if (ask) {
+      oask <- devAskNewPage(TRUE)
+      on.exit(devAskNewPage(oask))
+    }
+    ##---------- Do the individual plots : ----------
+    for (i in 1:ncol(x$X)) {
+      if (show[i]) {
+        ylim <- range(cov_effs[[i]], na.rm = TRUE)
+        if (ylim[1] > 0) ylim[1] = 0 else if (ylim[2] < 0) ylim[2] = 0
+        dev.hold()
+        plot(xaxis, cov_effs[[i]], xlab = labs[i], ylab = "Effect", main = main,
+             ylim = ylim, type = "n", ...)
+        lines(xaxis, cov_effs[[i]], ...)
+        if (one.fig)
+          title(sub = sub.caption, ...)
+        mtext(getCaption(i), 3, 0.25, cex = cex.caption)
+        abline(h = 0, lty = 3, col = "gray")
+        dev.flush()
+      }
+    }
+    if (!one.fig && par("oma")[3L] >= 1)
+      mtext(sub.caption, outer = TRUE, cex = cex.oma.main)
+    invisible()
+  }
