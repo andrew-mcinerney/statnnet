@@ -210,7 +210,7 @@ plot.statnnet <-
     for (i in 1:ncol(x$X)) {
       if (conf_int == TRUE && show[i]) {
         conf_val[[i]] <- mlesim(W = x$wts, X = x$X, y = x$y, q = x$n[2], ind =  i,
-                                FUN = pdp_effect, B = x$B,
+                                FUN = pdp_effect, B = B, alpha = alpha,
                                 x_r = x_axis_r,
                                 len = x_axis_l)
       }
