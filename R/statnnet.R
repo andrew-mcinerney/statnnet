@@ -174,7 +174,8 @@ print.summary.statnnet <- function(x, ...) {
 #' @export
 plot.statnnet <-
   function (x, which = c(1L:ncol(x$X)), x_axis_r = c(-3, 3), x_axis_l = 101,
-            conf_int = FALSE, alpha = 0.05, B = x$B,
+            conf_int = FALSE, alpha = 0.05, B = x$B, method = c("mlesim",
+                                                                "deltamethod"),
             caption = lapply(1:ncol(x$X),
                              function(iter) paste0("Covariate-Effect Plot for ",
                                                    colnames(x$X)[iter])),
@@ -192,6 +193,9 @@ plot.statnnet <-
       stop("'alpha' must be not be NULL when 'conf_int == TRUE'")
     } else if (conf_int == TRUE && (alpha < 0 || alpha > 1 || length(alpha) != 1)) {
       stop("'alpha' must be a value between 0 and 1")
+    } else if (conf_int == TRUE && !(method %in% c("mlesim",
+                                                 "deltamethod"))) {
+      stop("'method' must be one of 'mlesim' or 'deltamethod'")
     }
 
     getCaption <- function(k) # allow caption = "" , plotmath etc
@@ -209,10 +213,19 @@ plot.statnnet <-
     conf_val <- vector("list", length = ncol(x$X))
     for (i in 1:ncol(x$X)) {
       if (conf_int == TRUE && show[i]) {
-        conf_val[[i]] <- mlesim(W = x$wts, X = x$X, y = x$y, q = x$n[2], ind =  i,
-                                FUN = pdp_effect, B = B, alpha = alpha,
-                                x_r = x_axis_r,
-                                len = x_axis_l)
+
+        if (method[1] == "mlesim") {
+          conf_val[[i]] <- mlesim(W = x$wts, X = x$X, y = x$y, q = x$n[2], ind =  i,
+                                  FUN = pdp_effect, B = B, alpha = alpha,
+                                  x_r = x_axis_r,
+                                  len = x_axis_l)
+        } else if (method[1] == "deltamethod") {
+          conf_val[[i]] <- delta_method(W = x$wts, X = x$X, y = x$y, q = x$n[2],
+                                        ind =  i, FUN = pdp_effect,
+                                        alpha = alpha, x_r = x_axis_r,
+                                        len = x_axis_l)
+        }
+
       }
     }
 
