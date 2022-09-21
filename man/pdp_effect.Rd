@@ -14,6 +14,10 @@ pdp_effect(W, X, q, ind, x_r = c(-3, 3), len = 301)
 \item{q}{Number of hidden units}
 
 \item{ind}{index of column to plot}
+
+\item{x_r}{x-axis range}
+
+\item{len}{number of breaks for x-axis}
 }
 \value{
 Effect for each input

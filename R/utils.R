@@ -83,6 +83,8 @@ covariate_eff <- function(X, W, q) {
 #' @param X Data
 #' @param q Number of hidden units
 #' @param ind index of column to plot
+#' @param x_r x-axis range
+#' @param len number of breaks for x-axis
 #' @return Effect for each input
 #' @export
 pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301){
@@ -98,4 +100,86 @@ pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301){
     eff[i] <- mean(nn_pred(X + sd_m, W, q) - nn_pred(X, W, q))
   }
   return(eff)
+}
+
+#' Perform mle simulation for a function FUN to calculate associated uncertainty
+#'
+#'
+#' @param W Weight vector
+#' @param X Data
+#' @param y Response
+#' @param q Number of hidden units
+#' @param ind index of column to plot
+#' @param B number of replicates
+#' @param alpha significance level
+#' @param x_r x-axis range
+#' @param len number of breaks for x-axis
+#' @return Effect for each input
+#' @export
+mlesim <- function (W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3),
+                    len = 301) {
+
+  nn <- nnet::nnet(y~., data = data.frame(X, y), size = q, Wts = W,
+                   linout = TRUE, trace = FALSE, maxit = 0, Hess = TRUE)
+
+  sigma2 <- nn$value/n # nn$value = RSS
+
+  Sigma_inv <- nn$Hessian/(2*sigma2)
+
+  Sigma_hat <- solve(Sigma_inv)
+
+  sim <- MASS::mvrnorm(n = B, mu = W, Sigma = Sigma_hat)
+
+  pred <- apply(sim, 1, function(x) FUN(x, X = X, ind = ind, q = q,
+                                        x_r = x_r, len = len))
+
+
+  lower <- apply(pred, 1, quantile, probs = alpha / 2)
+  upper <- apply(pred, 1, quantile, probs = 1 - alpha / 2)
+
+  return(list('upper' = upper, 'lower' = lower))
+}
+
+#' Perform delta method for a function FUN to calculate associated uncertainty
+#'
+#'
+#' @param W Weight vector
+#' @param X Data
+#' @param y Response
+#' @param q Number of hidden units
+#' @param ind index of column to plot
+#' @param alpha significance level
+#' @param x_r x-axis range
+#' @param len number of breaks for x-axis
+#' @return Effect for each input
+#' @export
+delta_method <- function(W, X, y, q, ind, FUN, alpha = 0.05, x_r = c(-3, 3),
+                         len = 301, ...){
+
+  nn <- nnet::nnet(X, y, size = q, Wts = W, linout = TRUE, Hess = TRUE,
+                   maxit = 0, trace = FALSE)
+
+  sigma2 <- nn$value / n  # estimate \sigma^2
+
+  Sigma_inv <- nn$Hessian/(2*sigma2)
+
+  Sigma_hat <- solve(Sigma_inv)
+
+  gradient <- numDeriv::jacobian(func = FUN,
+                                 x = W,
+                                 X = X,
+                                 ind = ind,
+                                 q = q,
+                                 x_r = x_r,
+                                 len = len,
+                                 ...)
+
+  var_est <- as.matrix(gradient) %*% Sigma_hat %*% t(as.matrix(gradient))
+
+  pred <- FUN(W = W, X = X, q = q, ind = ind, x_r = x_r, len = len, ...)
+
+  upper <- pred + qnorm(1 - alpha / 2) * sqrt(diag(var_est))
+  lower <- pred + qnorm(alpha / 2) * sqrt(diag(var_est))
+
+  return(list('upper' = upper, 'lower' = lower))
 }
