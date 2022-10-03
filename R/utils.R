@@ -159,7 +159,7 @@ delta_method <- function(W, X, y, q, ind, FUN, alpha = 0.05, x_r = c(-3, 3),
   nn <- nnet::nnet(X, y, size = q, Wts = W, linout = TRUE, Hess = TRUE,
                    maxit = 0, trace = FALSE)
 
-  sigma2 <- nn$value / n  # estimate \sigma^2
+  sigma2 <- nn$value / nrow(X)  # estimate \sigma^2
 
   Sigma_inv <- nn$Hessian/(2*sigma2)
 

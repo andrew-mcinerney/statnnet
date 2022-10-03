@@ -179,6 +179,7 @@ plot.statnnet <-
             caption = lapply(1:ncol(x$X),
                              function(iter) paste0("Covariate-Effect Plot for ",
                                                    colnames(x$X)[iter])),
+            ylim = NULL,
             sub.caption = NULL, main = "",
             ask = prod(par("mfcol")) < length(which) && dev.interactive(), ...,
             label.pos = c(4,2), cex.caption = 1, cex.oma.main = 1.25){
@@ -194,7 +195,7 @@ plot.statnnet <-
     } else if (conf_int == TRUE && (alpha < 0 || alpha > 1 || length(alpha) != 1)) {
       stop("'alpha' must be a value between 0 and 1")
     } else if (conf_int == TRUE && !(method %in% c("mlesim",
-                                                 "deltamethod"))) {
+                                                   "deltamethod"))) {
       stop("'method' must be one of 'mlesim' or 'deltamethod'")
     }
 
@@ -240,13 +241,15 @@ plot.statnnet <-
       on.exit(devAskNewPage(oask))
     }
     ##---------- Do the individual plots : ----------
+    y_lim_user <- ylim
     for (i in 1:ncol(x$X)) {
       if (show[i]) {
 
-        ylim <- range(c(cov_effs[[i]], conf_val[[i]]), na.rm = TRUE)
+        if (is.null(y_lim_user)) {
+          ylim <- range(c(cov_effs[[i]], conf_val[[i]]), na.rm = TRUE)
+          if (ylim[1] > 0) ylim[1] = 0 else if (ylim[2] < 0) ylim[2] = 0
+        }
 
-
-        if (ylim[1] > 0) ylim[1] = 0 else if (ylim[2] < 0) ylim[2] = 0
         dev.hold()
         plot(xaxis, cov_effs[[i]], xlab = labs[i], ylab = "Effect", main = main,
              ylim = ylim, type = "n", ...)
