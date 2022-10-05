@@ -115,14 +115,16 @@ summary.statnnet <- function(object, ...) {
     Covariate = covariates,
     Estimate = object$eff,
     Std.Error = object$eff_se,
+    Break1 = rep("|", length(object$wald_p)),
     Wald.chi = object$wald_chi,
     Wald.p.value = object$wald_p
   )
 
   colnames(coefdf)[1] <- ""
   colnames(coefdf)[3] <- "Std. Error"
-  colnames(coefdf)[4] <- "  X^2"
-  colnames(coefdf)[5] <- "Pr(> X^2)"
+  colnames(coefdf)[4] <- "|"
+  colnames(coefdf)[5] <- "  X^2"
+  colnames(coefdf)[6] <- "Pr(> X^2)"
 
   object$coefdf <- coefdf
 
@@ -139,6 +141,21 @@ summary.statnnet <- function(object, ...) {
 
 #' @export
 print.summary.statnnet <- function(x, ...) {
+
+  ## code to get wald in right place (may need editing later)
+
+  fdf <- format(x$coefdf)
+  strings <- apply(x$coefdf, 2, function(x) unlist(format(x)))[1, ]
+  rowname <- format(rownames(fdf))[[1]]
+  strings <- c(rowname, strings)
+  widths <- nchar(strings)
+  names <- c("", colnames(x))
+  widths <- pmax(nchar(strings), nchar(names))
+  csum <- sum(widths[2:5] + 1) - 1 # first 5 aren't associated with Wald
+  csum <- csum + mean(widths[6:7]) # to be centered above columns
+
+  ##
+
   cat("Call (nnet):\n")
   print(x$call)
   cat("Call (statnnet):\n")
@@ -150,7 +167,7 @@ print.summary.statnnet <- function(x, ...) {
   cat("BIC:", x$BIC, "\n")
   cat("\n")
   cat("Coefficients:\n")
-
+  writeLines(paste(c(rep(" ", csum), "Wald"), collapse = ""))
   print(x$coefdf, right = TRUE, na.print = "NA",
         digits =  max(3L, getOption("digits") - 2L), row.names = FALSE)
 
