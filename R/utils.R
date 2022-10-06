@@ -1,27 +1,47 @@
-#' Network Output Function
+#' Neural network prediction
 #'
 #'
 #' @param X Data
 #' @param W Weight vector
-#' @param q Number of hidden units
+#' @param q Number of hidden nodes
+#' @param output Activation function for output unit: `"identity"` (default) or
+#'  `"sigmoid"`
 #' @return Prediction for given inputs
 #' @export
-nn_pred <- function(X, W, q) {
+nn_pred <- function(X, W, q, output = "identity") {
   n <- nrow(X)
   p <- ncol(X)
 
-  if (length(W) == ((p + 2) * q + 1)) {
+  k <- (p + 2) * q + 1
+
+  if (length(W) == k) {
     X <- cbind(rep(1, n), X)
 
     h_input <- X %*% t(matrix(W[1:((p + 1) * q)], nrow = q, byrow = TRUE))
 
     h_act <- cbind(rep(1, n), sigmoid(h_input))
 
-    y_hat <- h_act %*% matrix(W[c((length(W) - q):length(W))], ncol = 1)
+    if (output == "identity") {
+      y_hat <- h_act %*% matrix(W[c((length(W) - q):length(W))], ncol = 1)
+    } else if (output == "sigmoid") {
+      y_hat <- sigmoid(
+        h_act %*% matrix(W[c((length(W) - q):length(W))], ncol = 1)
+      )
+    } else {
+      stop(
+        sprintf(
+          "Error: %s not recognised as available output function.",
+          output
+        )
+      )
+    }
 
     return(y_hat)
   } else {
-    return(print("Error: Incorrect number of weights for NN structure"))
+    stop(sprintf(
+      "Error: Incorrect number of weights for NN structure. W should have
+      %s weights (%s weights supplied).", k, length(W)
+    ))
   }
 }
 
@@ -36,10 +56,8 @@ sigmoid <- function(x) 1 / (1 + exp(-x))
 #' Neural Network Normal Log-likelihood Value
 #'
 #'
-#' @param X Data
-#' @param W Weight vector
-#' @param q Number of hidden units
-#' @return Prediction for given inputs
+#' @param nn_model nnet object
+#' @return Log-Likelihhod value
 #' @export
 nn_loglike <- function(nn_model) {
   n <- nrow(nn_model$residuals)
@@ -99,7 +117,7 @@ pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301) {
   return(eff)
 }
 
-#' Perform mle simulation for a function FUN to calculate associated uncertainty
+#' Perform m.l.e. simulation for a function FUN to calculate associated uncertainty
 #'
 #'
 #' @param W Weight vector
@@ -107,6 +125,7 @@ pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301) {
 #' @param y Response
 #' @param q Number of hidden units
 #' @param ind index of column to plot
+#' @param FUN function for m.l.e. simulation
 #' @param B number of replicates
 #' @param alpha significance level
 #' @param x_r x-axis range
@@ -152,9 +171,11 @@ mlesim <- function(W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3),
 #' @param y Response
 #' @param q Number of hidden units
 #' @param ind index of column to plot
+#' @param FUN function for delta method
 #' @param alpha significance level
 #' @param x_r x-axis range
 #' @param len number of breaks for x-axis
+#' @param ... additional arguments to FUN
 #' @return Effect for each input
 #' @export
 delta_method <- function(W, X, y, q, ind, FUN, alpha = 0.05, x_r = c(-3, 3),

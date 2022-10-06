@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{mlesim}
 \alias{mlesim}
-\title{Perform mle simulation for a function FUN to calculate associated uncertainty}
+\title{Perform m.l.e. simulation for a function FUN to calculate associated uncertainty}
 \usage{
 mlesim(W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3), len = 301)
 }
@@ -17,6 +17,8 @@ mlesim(W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3), len = 301)
 
 \item{ind}{index of column to plot}
 
+\item{FUN}{function for m.l.e. simulation}
+
 \item{B}{number of replicates}
 
 \item{alpha}{significance level}
@@ -29,5 +31,5 @@ mlesim(W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3), len = 301)
 Effect for each input
 }
 \description{
-Perform mle simulation for a function FUN to calculate associated uncertainty
+Perform m.l.e. simulation for a function FUN to calculate associated uncertainty
 }

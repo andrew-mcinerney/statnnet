@@ -7,14 +7,10 @@
 nn_loglike(nn_model)
 }
 \arguments{
-\item{X}{Data}
-
-\item{W}{Weight vector}
-
-\item{q}{Number of hidden units}
+\item{nn_model}{nnet object}
 }
 \value{
-Prediction for given inputs
+Log-Likelihhod value
 }
 \description{
 Neural Network Normal Log-likelihood Value

@@ -86,49 +86,4 @@ nn_fit_tracks <- function(X, y, q, n_init, inf_crit = "BIC",
 }
 
 
-#' Neural network prediction
-#'
-#'
-#' @param X Data
-#' @param W Weight vector
-#' @param q Number of hidden nodes
-#' @param output Activation function for output unit: `"identity"` (default) or
-#'  `"sigmoid"`
-#' @return Prediction for given inputs
-#' @export
-nn_pred <- function(X, W, q, output = "identity") {
-  n <- nrow(X)
-  p <- ncol(X)
 
-  k <- (p + 2) * q + 1
-
-  if (length(W) == k) {
-    X <- cbind(rep(1, n), X)
-
-    h_input <- X %*% t(matrix(W[1:((p + 1) * q)], nrow = q, byrow = TRUE))
-
-    h_act <- cbind(rep(1, n), sigmoid(h_input))
-
-    if (output == "identity") {
-      y_hat <- h_act %*% matrix(W[c((length(W) - q):length(W))], ncol = 1)
-    } else if (output == "sigmoid") {
-      y_hat <- sigmoid(
-        h_act %*% matrix(W[c((length(W) - q):length(W))], ncol = 1)
-      )
-    } else {
-      stop(
-        sprintf(
-          "Error: %s not recognised as available output function.",
-          output
-        )
-      )
-    }
-
-    return(y_hat)
-  } else {
-    stop(sprintf(
-      "Error: Incorrect number of weights for NN structure. W should have
-      %s weights (%s weights supplied).", k, length(W)
-    ))
-  }
-}

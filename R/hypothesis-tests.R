@@ -56,6 +56,7 @@ wald_test <- function(X, y, W, q) {
 #' @param unif Value for generating random weights
 #' @param maxit Maximum number of iterations for nnet
 #' @return Wald hypothesis test for each input
+#' @param ... additional arguments to nnet
 #' @export
 lr_test <- function(X, y, W, q, n_init = 1, unif = 3, maxit = 1000, ...) {
   n <- nrow(X)

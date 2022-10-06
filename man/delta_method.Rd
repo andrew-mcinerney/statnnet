@@ -28,11 +28,15 @@ delta_method(
 
 \item{ind}{index of column to plot}
 
+\item{FUN}{function for delta method}
+
 \item{alpha}{significance level}
 
 \item{x_r}{x-axis range}
 
 \item{len}{number of breaks for x-axis}
+
+\item{...}{additional arguments to FUN}
 }
 \value{
 Effect for each input

@@ -20,6 +20,8 @@ lr_test(X, y, W, q, n_init = 1, unif = 3, maxit = 1000, ...)
 \item{unif}{Value for generating random weights}
 
 \item{maxit}{Maximum number of iterations for nnet}
+
+\item{...}{additional arguments to nnet}
 }
 \value{
 Wald hypothesis test for each input
