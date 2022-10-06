@@ -19,3 +19,28 @@ You can install the development version of statnnet from
 # install.packages("devtools")
 devtools::install_github("andrew-mcinerney/statnnet")
 ```
+
+## statnnet()
+
+The primary function in this package is `statnnet()`. It creates a
+statistically-based version of an existing `nnet` object.
+
+``` r
+library(statnnet)
+stnn <- selectnn(nnet, X)
+```
+
+A useful summary table can be generated using
+
+``` r
+summary(stnn)
+```
+
+and covariate-effect plots can be created using
+
+``` r
+plot(stnn, conf_int = TRUE)
+```
+
+More information about these functions and their arguments can be found
+in the function documentation.
