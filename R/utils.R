@@ -10,19 +10,18 @@ nn_pred <- function(X, W, q) {
   n <- nrow(X)
   p <- ncol(X)
 
-  if(length(W) == ((p + 2)*q + 1)){
+  if (length(W) == ((p + 2) * q + 1)) {
     X <- cbind(rep(1, n), X)
 
-    h_input <- X %*% t(matrix(W[1:((p + 1)*q)], nrow = q, byrow = TRUE))
+    h_input <- X %*% t(matrix(W[1:((p + 1) * q)], nrow = q, byrow = TRUE))
 
     h_act <- cbind(rep(1, n), sigmoid(h_input))
 
     y_hat <- h_act %*% matrix(W[c((length(W) - q):length(W))], ncol = 1)
 
     return(y_hat)
-
-  }else{
-    return(print('Error: Incorrect number of weights for NN structure'))
+  } else {
+    return(print("Error: Incorrect number of weights for NN structure"))
   }
 }
 
@@ -32,7 +31,7 @@ nn_pred <- function(X, W, q) {
 #' @param x Input
 #' @return Sigmoid function
 #' @export
-sigmoid <- function(x) 1 / (1 + exp(- x))
+sigmoid <- function(x) 1 / (1 + exp(-x))
 
 #' Neural Network Normal Log-likelihood Value
 #'
@@ -42,18 +41,16 @@ sigmoid <- function(x) 1 / (1 + exp(- x))
 #' @param q Number of hidden units
 #' @return Prediction for given inputs
 #' @export
-nn_loglike <- function(nn_model){
-
+nn_loglike <- function(nn_model) {
   n <- nrow(nn_model$residuals)
 
   RSS <- nn_model$value
 
   sigma2 <- RSS / n
 
-  log_like <- (- n / 2) * log(2 * pi * sigma2) - RSS / (2 * sigma2)
+  log_like <- (-n / 2) * log(2 * pi * sigma2) - RSS / (2 * sigma2)
 
   return(log_like)
-
 }
 
 #' Difference in average prediction for values above and below median
@@ -87,7 +84,7 @@ covariate_eff <- function(X, W, q) {
 #' @param len number of breaks for x-axis
 #' @return Effect for each input
 #' @export
-pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301){
+pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301) {
   sd_m <- matrix(0, ncol = ncol(X), nrow = nrow(X))
   sd_m[, ind] <- stats::sd(X[, ind])
 
@@ -95,7 +92,7 @@ pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301){
 
   eff <- rep(NA, len)
 
-  for (i in 1:len){
+  for (i in 1:len) {
     X[, ind] <- x[i]
     eff[i] <- mean(nn_pred(X + sd_m, W, q) - nn_pred(X, W, q))
   }
@@ -116,30 +113,35 @@ pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301){
 #' @param len number of breaks for x-axis
 #' @return Effect for each input
 #' @export
-mlesim <- function (W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3),
-                    len = 301) {
-
-  nn <- nnet::nnet(y~., data = data.frame(X, y), size = q, Wts = W,
-                   linout = TRUE, trace = FALSE, maxit = 0, Hess = TRUE)
+mlesim <- function(W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3),
+                   len = 301) {
+  nn <- nnet::nnet(y ~ .,
+    data = data.frame(X, y), size = q, Wts = W,
+    linout = TRUE, trace = FALSE, maxit = 0, Hess = TRUE
+  )
 
   n <- nrow(X)
 
-  sigma2 <- nn$value/n # nn$value = RSS
+  sigma2 <- nn$value / n # nn$value = RSS
 
-  Sigma_inv <- nn$Hessian/(2*sigma2)
+  Sigma_inv <- nn$Hessian / (2 * sigma2)
 
   Sigma_hat <- solve(Sigma_inv)
 
   sim <- MASS::mvrnorm(n = B, mu = W, Sigma = Sigma_hat)
 
-  pred <- apply(sim, 1, function(x) FUN(x, X = X, ind = ind, q = q,
-                                        x_r = x_r, len = len))
+  pred <- apply(sim, 1, function(x) {
+    FUN(x,
+      X = X, ind = ind, q = q,
+      x_r = x_r, len = len
+    )
+  })
 
 
   lower <- apply(pred, 1, stats::quantile, probs = alpha / 2)
   upper <- apply(pred, 1, stats::quantile, probs = 1 - alpha / 2)
 
-  return(list('upper' = upper, 'lower' = lower))
+  return(list("upper" = upper, "lower" = lower))
 }
 
 #' Perform delta method for a function FUN to calculate associated uncertainty
@@ -156,25 +158,28 @@ mlesim <- function (W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3)
 #' @return Effect for each input
 #' @export
 delta_method <- function(W, X, y, q, ind, FUN, alpha = 0.05, x_r = c(-3, 3),
-                         len = 301, ...){
+                         len = 301, ...) {
+  nn <- nnet::nnet(X, y,
+    size = q, Wts = W, linout = TRUE, Hess = TRUE,
+    maxit = 0, trace = FALSE
+  )
 
-  nn <- nnet::nnet(X, y, size = q, Wts = W, linout = TRUE, Hess = TRUE,
-                   maxit = 0, trace = FALSE)
+  sigma2 <- nn$value / nrow(X) # estimate \sigma^2
 
-  sigma2 <- nn$value / nrow(X)  # estimate \sigma^2
-
-  Sigma_inv <- nn$Hessian/(2*sigma2)
+  Sigma_inv <- nn$Hessian / (2 * sigma2)
 
   Sigma_hat <- solve(Sigma_inv)
 
-  gradient <- numDeriv::jacobian(func = FUN,
-                                 x = W,
-                                 X = X,
-                                 ind = ind,
-                                 q = q,
-                                 x_r = x_r,
-                                 len = len,
-                                 ...)
+  gradient <- numDeriv::jacobian(
+    func = FUN,
+    x = W,
+    X = X,
+    ind = ind,
+    q = q,
+    x_r = x_r,
+    len = len,
+    ...
+  )
 
   var_est <- as.matrix(gradient) %*% Sigma_hat %*% t(as.matrix(gradient))
 
@@ -183,5 +188,5 @@ delta_method <- function(W, X, y, q, ind, FUN, alpha = 0.05, x_r = c(-3, 3),
   upper <- pred + stats::qnorm(1 - alpha / 2) * sqrt(diag(var_est))
   lower <- pred + stats::qnorm(alpha / 2) * sqrt(diag(var_est))
 
-  return(list('upper' = upper, 'lower' = lower))
+  return(list("upper" = upper, "lower" = lower))
 }

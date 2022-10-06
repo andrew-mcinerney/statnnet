@@ -46,9 +46,9 @@ nn_fit_tracks <- function(X, y, q, n_init, inf_crit = "BIC",
 
   for (iter in 1:n_init) {
     nn_model <- nnet::nnet(y ~ .,
-                           data = df, size = q, trace = FALSE,
-                           linout = linout, entropy = entropy,
-                           Wts = weight_matrix_init[iter, ], maxit = maxit, ...
+      data = df, size = q, trace = FALSE,
+      linout = linout, entropy = entropy,
+      Wts = weight_matrix_init[iter, ], maxit = maxit, ...
     )
 
     weight_matrix[iter, ] <- nn_model$wts
@@ -63,14 +63,14 @@ nn_fit_tracks <- function(X, y, q, n_init, inf_crit = "BIC",
     }
 
     inf_crit_vec[iter] <- ifelse(inf_crit == "AIC",
-                                 (2 * (k + 1) - 2 * log_likelihood),
-                                 ifelse(inf_crit == "BIC",
-                                        (log(n) * (k + 1) - 2 * log_likelihood),
-                                        ifelse(inf_crit == "AICc",
-                                               (2 * (k + 1) * (n / (n - (k + 1) - 1)) - 2 * log_likelihood),
-                                               NA
-                                        )
-                                 )
+      (2 * (k + 1) - 2 * log_likelihood),
+      ifelse(inf_crit == "BIC",
+        (log(n) * (k + 1) - 2 * log_likelihood),
+        ifelse(inf_crit == "AICc",
+          (2 * (k + 1) * (n / (n - (k + 1) - 1)) - 2 * log_likelihood),
+          NA
+        )
+      )
     )
     converge[iter] <- nn_model$convergence
   }

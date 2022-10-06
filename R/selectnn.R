@@ -247,11 +247,11 @@ print.selectnn <- function(x, ...) {
   print(x$call)
   cat("\n")
   cat("Model Selected: ", x$p, "-", x$q, "-", "1", " network",
-      sep = ""
+    sep = ""
   )
   cat(" with", (x$p + 2) * x$q + 1, "weights\n")
   cat("Initial Model: ", x$p_init, "-", x$q_init, "-", "1", " network",
-      sep = ""
+    sep = ""
   )
   cat(" with", (x$p_init + 2) * x$q_init + 1, "weights\n")
 }
@@ -303,9 +303,11 @@ summary.selectnn <- function(object, ...) {
 
   object$nconn <- nconn
 
-  selected <-  !colnames(object$X_full) %in% object$dropped
-  covariates <- c(colnames(object$X_full)[selected],
-                  colnames(object$X_full)[!selected])
+  selected <- !colnames(object$X_full) %in% object$dropped
+  covariates <- c(
+    colnames(object$X_full)[selected],
+    colnames(object$X_full)[!selected]
+  )
   bic_diff <- object$delta_bic
   selected_yesno <- c(rep("Yes", sum(selected)), rep("No", sum(!selected)))
 
@@ -334,7 +336,7 @@ print.summary.selectnn <- function(x, ...) {
   cat("\n")
   cat("Inputs:\n")
   print(x$coefdf,
-        row.names = FALSE
+    row.names = FALSE
   )
   cat("\n")
   cat("Weights:\n")
