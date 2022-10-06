@@ -7,7 +7,7 @@
 
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/andrew-mcinerney/statnnet/workflows/R-CMD-check/badge.svg)](https://github.com/andrew-mcinerney/selectnn/actions)
+[![R-CMD-check](https://github.com/andrew-mcinerney/statnnet/workflows/R-CMD-check/badge.svg)](https://github.com/andrew-mcinerney/statnnet/actions)
 <!-- badges: end -->
 
 ## Installation
