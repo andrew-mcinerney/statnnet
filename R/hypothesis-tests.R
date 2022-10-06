@@ -35,7 +35,7 @@ wald_test <- function(X, y, W, q) {
 
     chisq[i] <- t(theta_x) %*% Sigma_inv_x %*% theta_x
 
-    p_values[i] <- 1 - pchisq(chisq[i], df = q)
+    p_values[i] <- 1 - stats::pchisq(chisq[i], df = q)
   }
 
   return(list("chisq" = chisq, "p_value" = p_values))
@@ -68,7 +68,7 @@ lr_test <- function(X, y, W, q, n_init = 1, unif = 3, maxit = 1000, ...) {
 
   sigma2 <- RSS_full / n
 
-  log_like_full = (- n / 2) * log(2 * pi * sigma2) - (RSS / (2 * sigma2))
+  log_like_full = (- n / 2) * log(2 * pi * sigma2) - (RSS_full / (2 * sigma2))
 
   k_rem <- (p + 1) * q + 1
 
@@ -82,7 +82,7 @@ lr_test <- function(X, y, W, q, n_init = 1, unif = 3, maxit = 1000, ...) {
     X_temp <- X[, -i]
 
     weight_matrix_init <- matrix(
-      runif(k_rem * n_init, min = - unif, max = unif),
+      stats::runif(k_rem * n_init, min = - unif, max = unif),
       nrow = n_init,
       byrow = T)
 
@@ -102,7 +102,7 @@ lr_test <- function(X, y, W, q, n_init = 1, unif = 3, maxit = 1000, ...) {
 
     chisq[i] <- - 2 * (log_like_rem - log_like_full)
 
-    p_values[i] = pchisq(chisq[i], df = deg_freedom, lower.tail = F)
+    p_values[i] = stats::pchisq(chisq[i], df = deg_freedom, lower.tail = F)
   }
   return(list("chisq" = chisq, "p_value" = p_values))
 }

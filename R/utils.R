@@ -67,8 +67,8 @@ nn_loglike <- function(nn_model){
 covariate_eff <- function(X, W, q) {
   eff <- rep(NA, ncol(X))
   for (col in 1:ncol(X)) {
-    low <- X[X[, col] <= median(X[, col]), ]
-    high <- X[X[, col] > median(X[, col]), ]
+    low <- X[X[, col] <= stats::median(X[, col]), ]
+    high <- X[X[, col] > stats::median(X[, col]), ]
 
     eff[col] <- mean(nn_pred(high, W, q)) - mean(nn_pred(low, W, q))
   }
@@ -89,7 +89,7 @@ covariate_eff <- function(X, W, q) {
 #' @export
 pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301){
   sd_m <- matrix(0, ncol = ncol(X), nrow = nrow(X))
-  sd_m[, ind] <- sd(X[, ind])
+  sd_m[, ind] <- stats::sd(X[, ind])
 
   x <- seq(from = x_r[1], to = x_r[2], length.out = len)
 
@@ -122,6 +122,8 @@ mlesim <- function (W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3)
   nn <- nnet::nnet(y~., data = data.frame(X, y), size = q, Wts = W,
                    linout = TRUE, trace = FALSE, maxit = 0, Hess = TRUE)
 
+  n <- nrow(X)
+
   sigma2 <- nn$value/n # nn$value = RSS
 
   Sigma_inv <- nn$Hessian/(2*sigma2)
@@ -134,8 +136,8 @@ mlesim <- function (W, X, y, q, ind, FUN, B = 1000, alpha = 0.05, x_r = c(-3, 3)
                                         x_r = x_r, len = len))
 
 
-  lower <- apply(pred, 1, quantile, probs = alpha / 2)
-  upper <- apply(pred, 1, quantile, probs = 1 - alpha / 2)
+  lower <- apply(pred, 1, stats::quantile, probs = alpha / 2)
+  upper <- apply(pred, 1, stats::quantile, probs = 1 - alpha / 2)
 
   return(list('upper' = upper, 'lower' = lower))
 }
@@ -178,8 +180,8 @@ delta_method <- function(W, X, y, q, ind, FUN, alpha = 0.05, x_r = c(-3, 3),
 
   pred <- FUN(W = W, X = X, q = q, ind = ind, x_r = x_r, len = len, ...)
 
-  upper <- pred + qnorm(1 - alpha / 2) * sqrt(diag(var_est))
-  lower <- pred + qnorm(alpha / 2) * sqrt(diag(var_est))
+  upper <- pred + stats::qnorm(1 - alpha / 2) * sqrt(diag(var_est))
+  lower <- pred + stats::qnorm(alpha / 2) * sqrt(diag(var_est))
 
   return(list('upper' = upper, 'lower' = lower))
 }

@@ -5,6 +5,11 @@
 
 # statnnet
 
+<!-- badges: start -->
+
+[![R-CMD-check](https://github.com/andrew-mcinerney/statnnet/workflows/R-CMD-check/badge.svg)](https://github.com/andrew-mcinerney/selectnn/actions)
+<!-- badges: end -->
+
 ## Installation
 
 You can install the development version of statnnet from

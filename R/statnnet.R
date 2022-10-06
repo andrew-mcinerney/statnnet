@@ -33,7 +33,7 @@ statnnet <- function(nn, X, B = 1000) {
                                covariate_eff(X[sample(n, size = n, replace = TRUE), ],
                                              W = nn$wts,
                                              q = nn$n[2])),
-                     1, sd)
+                     1, stats::sd)
 
 
   nn$cl <- match.call()
@@ -128,7 +128,7 @@ summary.statnnet <- function(object, ...) {
 
   object$coefdf <- coefdf
 
-  Signif <- symnum(object$wald_p, corr = FALSE, na = FALSE,
+  Signif <- stats::symnum(object$wald_p, corr = FALSE, na = FALSE,
                    cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
                    symbols = c("***", "**", "*", ".", " "))
   object$coefdf$`Pr(> X^2)` <- paste(
@@ -171,7 +171,7 @@ print.summary.statnnet <- function(x, ...) {
   print(x$coefdf, right = TRUE, na.print = "NA",
         digits =  max(3L, getOption("digits") - 2L), row.names = FALSE)
 
-  Signif <- symnum(x$wald_p, corr = FALSE, na = FALSE,
+  Signif <- stats::symnum(x$wald_p, corr = FALSE, na = FALSE,
                    cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1),
                    symbols = c("***", "**", "*", ".", " "))
   if ((w <- getOption("width")) < nchar(sleg <- attr(Signif,
@@ -198,7 +198,7 @@ plot.statnnet <-
                                                    colnames(x$X)[iter])),
             ylim = NULL,
             sub.caption = NULL, main = "",
-            ask = prod(par("mfcol")) < length(which) && dev.interactive(), ...,
+            ask = prod(graphics::par("mfcol")) < length(which) && grDevices::dev.interactive(), ...,
             label.pos = c(4,2), cex.caption = 1, cex.oma.main = 1.25){
 
     if (!inherits(x, "statnnet"))
@@ -217,7 +217,7 @@ plot.statnnet <-
     }
 
     getCaption <- function(k) # allow caption = "" , plotmath etc
-      if(length(caption) < k) NA_character_ else as.graphicsAnnot(caption[[k]])
+      if(length(caption) < k) NA_character_ else grDevices::as.graphicsAnnot(caption[[k]])
 
     show <- rep(FALSE, ncol(x$X))
     show[which] <- TRUE
@@ -252,10 +252,10 @@ plot.statnnet <-
 
     labs <- colnames(x$X)
 
-    one.fig <- prod(par("mfcol")) == 1
+    one.fig <- prod(graphics::par("mfcol")) == 1
     if (ask) {
-      oask <- devAskNewPage(TRUE)
-      on.exit(devAskNewPage(oask))
+      oask <- grDevices::devAskNewPage(TRUE)
+      on.exit(grDevices::devAskNewPage(oask))
     }
     ##---------- Do the individual plots : ----------
     y_lim_user <- ylim
@@ -267,22 +267,22 @@ plot.statnnet <-
           if (ylim[1] > 0) ylim[1] = 0 else if (ylim[2] < 0) ylim[2] = 0
         }
 
-        dev.hold()
+        grDevices::dev.hold()
         plot(xaxis, cov_effs[[i]], xlab = labs[i], ylab = "Effect", main = main,
              ylim = ylim, type = "n", ...)
-        lines(xaxis, cov_effs[[i]], ...)
+        graphics::lines(xaxis, cov_effs[[i]], ...)
         if (conf_int == TRUE) {
-          lines(xaxis, conf_val[[i]]$upper, lty = 2, col = 2, ...)
-          lines(xaxis, conf_val[[i]]$lower, lty = 2, col = 2, ...)
+          graphics::lines(xaxis, conf_val[[i]]$upper, lty = 2, col = 2, ...)
+          graphics::lines(xaxis, conf_val[[i]]$lower, lty = 2, col = 2, ...)
         }
         if (one.fig)
-          title(sub = sub.caption, ...)
-        mtext(getCaption(i), 3, 0.25, cex = cex.caption)
-        abline(h = 0, lty = 3, col = "gray")
-        dev.flush()
+          graphics::title(sub = sub.caption, ...)
+        graphics::mtext(getCaption(i), 3, 0.25, cex = cex.caption)
+        graphics::abline(h = 0, lty = 3, col = "gray")
+        grDevices::dev.flush()
       }
     }
-    if (!one.fig && par("oma")[3L] >= 1)
-      mtext(sub.caption, outer = TRUE, cex = cex.oma.main)
+    if (!one.fig && graphics::par("oma")[3L] >= 1)
+      graphics::mtext(sub.caption, outer = TRUE, cex = cex.oma.main)
     invisible()
   }

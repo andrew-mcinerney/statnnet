@@ -1,12 +1,22 @@
 Package: statnnet
-Title: What the Package Does (One Line, Title Case)
+Title: Statistical Outputs for Neural Networks
 Version: 0.0.0.9000
-Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Authors@R: c(
+    person("Andrew", "McInerney", , "andrew.mcinerney@ul.ie", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-2348-2159")),
+    person("Kevin", "Burke", , "kevin.burke@ul.ie", role = "aut")
+  )
+Description: Extends the exisitng nnet package for neural networks to get more
+    statistically-based outputs. Allows for the calcualtions of p-values for
+    neural network inputs, covariate-effect plots with their associated
+    uncertainty, and display interpretable summaries.
+License: GPL (>= 3)
+URL: https://github.com/andrew-mcinerney/statnnet
+BugReports: https://github.com/andrew-mcinerney/statnnet/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.1.2
+Imports: 
+    MASS,
+    nnet,
+    numDeriv
