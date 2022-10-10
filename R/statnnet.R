@@ -173,7 +173,7 @@ print.summary.statnnet <- function(x, ...) {
   cat("BIC:", x$BIC, "\n")
   cat("\n")
   cat("Coefficients:\n")
-  writeLines(paste(c(rep(" ", csum), "Wald"), collapse = ""))
+  writeLines(paste(c(rep(" ", csum - 3), "Wald"), collapse = ""))
   print(x$coefdf,
     right = TRUE, na.print = "NA",
     digits = max(3L, getOption("digits") - 2L), row.names = FALSE
