@@ -11,7 +11,8 @@ Description: Extends the exisitng nnet package for neural networks to get more
     neural network inputs, covariate-effect plots with their associated
     uncertainty, and display interpretable summaries.
 License: GPL (>= 3)
-URL: https://github.com/andrew-mcinerney/statnnet
+URL: https://github.com/andrew-mcinerney/statnnet,
+    https://andrew-mcinerney.github.io/statnnet/
 BugReports: https://github.com/andrew-mcinerney/statnnet/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
