@@ -308,8 +308,10 @@ summary.selectnn <- function(object, ...) {
     colnames(object$X_full)[selected],
     colnames(object$X_full)[!selected]
   )
-  bic_diff <- object$delta_bic
   selected_yesno <- c(rep("Yes", sum(selected)), rep("No", sum(!selected)))
+  bic_diff <- ifelse(selected_yesno == "Yes", object$delta_bic,
+                     -object$delta_bic)
+
 
   coefdf <- data.frame(
     Covariate = covariates,
@@ -317,7 +319,7 @@ summary.selectnn <- function(object, ...) {
     `Delta BIC` = round(bic_diff, 3)
   )
 
-  object$coefdf <- coefdf
+  object$coefdf <- coefdf[order(coefdf$Delta.BIC, decreasing = TRUE), ]
 
   class(object) <- c("summary.selectnn", class(object))
   return(object)
