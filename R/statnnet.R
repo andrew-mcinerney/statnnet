@@ -208,6 +208,7 @@ plot.statnnet <-
              "mlesim",
              "deltamethod"
            ),
+           rug_flag = TRUE,
            caption = lapply(
              1:ncol(x$X),
              function(iter) {
@@ -304,6 +305,9 @@ plot.statnnet <-
           ylim = ylim, type = "n", ...
         )
         graphics::lines(xaxis, cov_effs[[i]], ...)
+        if (rug_flag == TRUE) {
+          graphics::rug(x$X[, i], quiet = TRUE)
+        }
         if (conf_int == TRUE) {
           graphics::lines(xaxis, conf_val[[i]]$upper, lty = 2, col = 2, ...)
           graphics::lines(xaxis, conf_val[[i]]$lower, lty = 2, col = 2, ...)
