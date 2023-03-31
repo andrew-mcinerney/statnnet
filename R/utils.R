@@ -211,3 +211,52 @@ delta_method <- function(W, X, y, q, ind, FUN, alpha = 0.05, x_r = c(-3, 3),
 
   return(list("upper" = upper, "lower" = lower))
 }
+
+
+#' Calculate variance-covariance matrix for nnet object
+#'
+#'
+#' @param W Weight vector
+#' @param X Data
+#' @param y Response
+#' @param q Number of hidden units
+#' @param lambda Ridge penalty. Default is 0.
+#' @param response Response type: `"continuous"` (default) or
+#'  `"binary"`
+#' @param ... additional arguments to nnet
+#' @return Effect for each input
+#' @export
+VC <- function(W, X, y, q, lambda = 0, response = "continuous") {
+
+  if (response == "continuous") {
+    linout <- TRUE
+    entropy <- FALSE
+  } else if (task == "binary") {
+    linout <- FALSE
+    entropy <- TRUE
+  } else {
+    stop(sprintf(
+      "Error: %s not recognised as response. Please choose continuous or binary",
+      response
+    ))
+  }
+
+  nn_0 <- nnet::nnet(x = X, y = y, size = q, Wts = W, decay = lambda, linout = linout,
+                     entropy = entropy, maxit = 0, Hess = TRUE, trace = FALSE)
+
+  if (response == "continuous") {
+    sigma2 <- nn_0$value / length(y)
+    I_0 <- nn_0$Hessian / (2 * sigma2)
+  } else if (task == "binary") {
+    I_0 <-  nn_0$Hessian
+  }
+
+  P <- diag(length(W)) * 2 * lambda
+
+  I_p <- I_0 + P
+
+  vc <- solve(I_p) %*% I_0 %*% solve(I_p)
+
+  return(vc)
+
+}
