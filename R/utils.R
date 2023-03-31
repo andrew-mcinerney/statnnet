@@ -4,11 +4,11 @@
 #' @param X Data
 #' @param W Weight vector
 #' @param q Number of hidden nodes
-#' @param output Activation function for output unit: `"identity"` (default) or
-#'  `"sigmoid"`
+#' @param response Response type: `"continuous"` (default) or
+#'  `"binary"`
 #' @return Prediction for given inputs
 #' @export
-nn_pred <- function(X, W, q, output = "identity") {
+nn_pred <- function(X, W, q, response = "continuous") {
   n <- nrow(X)
   p <- ncol(X)
 
@@ -21,16 +21,16 @@ nn_pred <- function(X, W, q, output = "identity") {
 
     h_act <- cbind(rep(1, n), sigmoid(h_input))
 
-    if (output == "identity") {
+    if (response == "continuous") {
       y_hat <- h_act %*% matrix(W[c((length(W) - q):length(W))], ncol = 1)
-    } else if (output == "sigmoid") {
+    } else if (response == "binary") {
       y_hat <- sigmoid(
         h_act %*% matrix(W[c((length(W) - q):length(W))], ncol = 1)
       )
     } else {
       stop(
         sprintf(
-          "Error: %s not recognised as available output function.",
+          "Error: %s not recognised as available response type.",
           output
         )
       )
@@ -91,31 +91,7 @@ covariate_eff <- function(X, W, q) {
   return(eff)
 }
 
-#' Partial Dependence Plot for one std. dev. increase
-#'
-#'
-#' @param W Weight vector
-#' @param X Data
-#' @param q Number of hidden units
-#' @param ind index of column to plot
-#' @param x_r x-axis range
-#' @param len number of breaks for x-axis
-#' @return Effect for each input
-#' @export
-pdp_effect <- function(W, X, q, ind, x_r = c(-3, 3), len = 301) {
-  sd_m <- matrix(0, ncol = ncol(X), nrow = nrow(X))
-  sd_m[, ind] <- stats::sd(X[, ind])
 
-  x <- seq(from = x_r[1], to = x_r[2], length.out = len)
-
-  eff <- rep(NA, len)
-
-  for (i in 1:len) {
-    X[, ind] <- x[i]
-    eff[i] <- mean(nn_pred(X + sd_m, W, q) - nn_pred(X, W, q))
-  }
-  return(eff)
-}
 
 #' Perform m.l.e. simulation for a function FUN to calculate associated uncertainty
 #'
