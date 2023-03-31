@@ -5,22 +5,16 @@
 #' @param y Response
 #' @param W Weight vector
 #' @param q Number of hidden nodes
+#' @param lambda Ridge penalty. Default is 0.
+#' @param response Response type: `"continuous"` (default) or
+#'  `"binary"`
 #' @return Wald hypothesis test for each input
 #' @export
-wald_test <- function(X, y, W, q) {
+wald_test <- function(X, y, W, q, lambda = 0, response = "continuous") {
   p <- ncol(X)
   n <- nrow(X)
 
-  nn <- nnet::nnet(X, y,
-    size = q, linout = T, Hess = T, maxit = 0, trace = F,
-    Wts = W
-  )
-
-  sigma2 <- nn$value / n # estimate \sigma^2
-
-  Sigma_inv <- nn$Hessian / (2 * sigma2) # $\Sigma^-1 = I(\theta)$
-
-  Sigma <- solve(Sigma_inv)
+  vc <- VC(W, X, y, q, lambda = lambda, response = response)
 
   p_values <- rep(NA, p)
   chisq <- rep(NA, p)
@@ -35,9 +29,9 @@ wald_test <- function(X, y, W, q) {
     )
 
     theta_x <- W[ind_vec]
-    Sigma_inv_x <- solve(Sigma[ind_vec, ind_vec])
+    vc_inv_x <- solve(vc[ind_vec, ind_vec])
 
-    chisq[i] <- t(theta_x) %*% Sigma_inv_x %*% theta_x
+    chisq[i] <- t(theta_x) %*% vc_inv_x %*% theta_x
 
     p_values[i] <- 1 - stats::pchisq(chisq[i], df = q)
     p_values_f[i] <- 1 - stats::pf(chisq[i]/q, df1 = q, df2 = n - length(W))
@@ -46,6 +40,30 @@ wald_test <- function(X, y, W, q) {
   return(list("chisq" = chisq, "p_value" = p_values, "p_value_f" = p_values_f))
 }
 
+#' Wald test for weights
+#'
+#'
+#' @param X Data
+#' @param y Response
+#' @param W Weight vector
+#' @param q Number of hidden nodes
+#' @param lambda Ridge penalty. Default is 0.
+#' @param response Response type: `"continuous"` (default) or
+#'  `"binary"`
+#' @return Wald hypothesis test for each weight
+#' @export
+wald_sp_test <- function(X, y, W, q, lambda = 0, response = "continuous") {
+  p <- ncol(X)
+  n <- nrow(X)
+
+  vc <- VC(W, X, y, q, lambda = lambda, response = response)
+
+
+  chisq <- (W^2) / diag(vc)
+  p_values <- 1 - stats::pchisq(chisq, df = 1)
+
+  return(list("chisq" = chisq, "p_value" = p_values))
+}
 
 #' Likelihood ratio test for inputs
 #'
