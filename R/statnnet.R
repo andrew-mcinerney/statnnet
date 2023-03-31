@@ -15,6 +15,13 @@ statnnet <- function(nn, X, B = 1000) {
     colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
   }
 
+  # NOTE: Will need to make more general for multiclass classification
+  if (nn$entropy == TRUE) {
+    response <- "binary"
+  } else {
+    response <- "continuous"
+  }
+
   n <- nrow(nn$residuals)
 
   y <- nn$fitted.values + nn$residuals
@@ -23,7 +30,12 @@ statnnet <- function(nn, X, B = 1000) {
 
   nn$BIC <- -2 * nn_loglike(nn) + 2 * log(n)
 
-  wald <- wald_test(X, y, nn$wts, nn$n[2])
+  lambda <- nn$decay
+
+  wald_mp <- wald_test(X, y, nn$wts, nn$n[2], lambda = lambda,
+                       response = "continuous")
+  wald_sp <- wald_sp_test(X, y, nn$wts, nn$n[2], lambda = lambda,
+                          response = "continuous")
 
   # Covariate effect and bootstrapped std. error
   nn$eff <- covariate_eff(X, nn$wts, nn$n[2])
@@ -32,8 +44,8 @@ statnnet <- function(nn, X, B = 1000) {
     replicate(
       B,
       covariate_eff(X[sample(n, size = n, replace = TRUE), ],
-        W = nn$wts,
-        q = nn$n[2]
+                    W = nn$wts,
+                    q = nn$n[2]
       )
     ),
     1, stats::sd
@@ -42,8 +54,11 @@ statnnet <- function(nn, X, B = 1000) {
 
   nn$cl <- match.call()
 
-  nn$wald_p <- wald$p_value
-  nn$wald_chi <- wald$chisq
+  nn$wald_p <- wald_mp$p_value
+  nn$wald_chi <- wald_mp$chisq
+
+  nn$wald_sp_p <- wald_sp$p_value
+  nn$wald_sp_chi <- wald_sp$chisq
 
   nn$X <- X
   nn$y <- y
