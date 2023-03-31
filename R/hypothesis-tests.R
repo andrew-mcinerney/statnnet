@@ -40,7 +40,7 @@ wald_test <- function(X, y, W, q) {
     chisq[i] <- t(theta_x) %*% Sigma_inv_x %*% theta_x
 
     p_values[i] <- 1 - stats::pchisq(chisq[i], df = q)
-    p_values_f[i] <- 1 - stats::pchisq(chisq[i]/q, df1 = q, df2 = n - length(W))
+    p_values_f[i] <- 1 - stats::pf(chisq[i]/q, df1 = q, df2 = n - length(W))
   }
 
   return(list("chisq" = chisq, "p_value" = p_values, "p_value_f" = p_values_f))
