@@ -64,6 +64,9 @@ statnnet <- function(nn, X, B = 1000) {
   nn$y <- y
   nn$B <- B
 
+  nn$response <- response
+  nn$lambda <- lambda
+
   return(nn)
 }
 
