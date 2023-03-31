@@ -17,7 +17,7 @@ nn_pred <- function(X, W, q, output = "identity") {
   if (length(W) == k) {
     X <- cbind(rep(1, n), X)
 
-    h_input <- X %*% t(matrix(W[1:((p + 1) * q)], nrow = q, byrow = TRUE))
+    h_input <- as.matrix(X) %*% t(matrix(W[1:((p + 1) * q)], nrow = q, byrow = TRUE))
 
     h_act <- cbind(rep(1, n), sigmoid(h_input))
 
