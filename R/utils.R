@@ -210,7 +210,7 @@ VC <- function(W, X, y, q, lambda = 0, response = "continuous") {
   if (response == "continuous") {
     sigma2 <- nn_0$value / length(y)
     I_0 <- nn_0$Hessian / (2 * sigma2)
-  } else if (task == "binary") {
+  } else if (response == "binary") {
     I_0 <-  nn_0$Hessian
   }
 
