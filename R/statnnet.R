@@ -33,9 +33,9 @@ statnnet <- function(nn, X, B = 1000) {
   lambda <- nn$decay
 
   wald_mp <- wald_test(X, y, nn$wts, nn$n[2], lambda = lambda,
-                       response = "continuous")
+                       response = response)
   wald_sp <- wald_sp_test(X, y, nn$wts, nn$n[2], lambda = lambda,
-                          response = "continuous")
+                          response = response)
 
   # Covariate effect and bootstrapped std. error
   nn$eff <- covariate_eff(X, nn$wts, nn$n[2])
