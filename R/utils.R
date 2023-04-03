@@ -194,7 +194,7 @@ VC <- function(W, X, y, q, lambda = 0, response = "continuous") {
   if (response == "continuous") {
     linout <- TRUE
     entropy <- FALSE
-  } else if (task == "binary") {
+  } else if (response == "binary") {
     linout <- FALSE
     entropy <- TRUE
   } else {
