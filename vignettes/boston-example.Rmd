@@ -1,0 +1,80 @@
+---
+title: "Boston Housing Example"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Boston Housing Example}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+To begin, load the `interpretnn` package.
+
+```{r setup}
+library(interpretnn)
+```
+
+Also, load the package that we will use to fit the neural network.
+Our package works with a number of popular R packages for neural networks, and
+here we will use the `nnet` package.
+
+
+```{r, message=FALSE, warning=FALSE}
+library(nnet)
+```
+
+Now, load the data.
+
+```{r}
+# load data ---------------------------------------------------------------
+data(Boston)
+```
+
+
+Next, we fit a neural network.
+We will fit a neural network on the respose variable, `medv`, using all covariates and with two hidden nodes. 
+As neural networks require random initial weights to begin learning, we use
+`set.seed()` for reproducibility.
+
+```{r}
+set.seed(100)
+nn <- nnet(medv ~ ., data = Boston, size = 2, trace = FALSE,
+           linout = TRUE, maxit = 1000)
+```
+
+We can then create a `interpretnn` object
+
+```{r intnn, cache = TRUE}
+intnn <- interpretnn(nn, X = Boston[, -ncol(Boston)]) 
+```
+
+A useful summary table can then be produced using the `summary()` function
+
+```{r}
+summary(intnn)
+```
+
+This tells provides us with simple point estimates of the effects, and
+the results from the multiple-parameter Wald test for each input.
+
+We can visualise the covariate effects and their associated uncertainty using
+the `plot()` function, which creates Partial Covariate Effect (PCE) plots.
+
+<!-- ```{r, cache = TRUE} -->
+<!-- plot(intnn, conf_int = TRUE) -->
+<!-- ``` -->
+
+There is also a `plotnn()` function that visualise the significance of each weight
+from the single-parameter Wald test.
+
+
+```{r}
+plotnn(intnn)
+```
+
