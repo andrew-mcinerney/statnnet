@@ -1,80 +1,68 @@
 ---
-title: "Boston Housing Example"
+title: "A statnnet workflow with nnet"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Boston Housing Example}
+  %\VignetteIndexEntry{A statnnet workflow with nnet}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+`statnnet` starts from a fitted `nnet` model and does not refit it. This example
+uses a small linear-output network so that the covariance diagnostics and
+regression-style summaries remain interpretable.
+
+```{r setup, message=FALSE}
+library(nnet)
+library(statnnet)
+
+data(Boston)
+set.seed(2026)
+fit <- nnet(
+  medv ~ rm + lstat + chas,
+  data = Boston,
+  size = 1,
+  linout = TRUE,
+  decay = 0.1,
+  Hess = TRUE,
+  maxit = 1000,
+  trace = FALSE
 )
 ```
 
-To begin, load the `interpretnn` package.
+The ordinary `nnet` summary remains available on the original fit. The
+`statnnet` object adds validation, covariance diagnostics, grouped tests, and
+partial covariate effects.
 
-```{r setup}
-library(interpretnn)
+```{r augment}
+summary(fit)
+
+model <- interpretnn(
+  fit,
+  formula = medv ~ rm + lstat + chas,
+  data = Boston,
+  response = "continuous"
+)
+
+model
+summary(model)
 ```
 
-Also, load the package that we will use to fit the neural network.
-Our package works with a number of popular R packages for neural networks, and
-here we will use the `nnet` package.
+`anova()` groups all model-matrix columns belonging to the same formula term.
+This is particularly important when a factor expands to multiple dummy
+variables.
 
-
-```{r, message=FALSE, warning=FALSE}
-library(nnet)
+```{r grouped}
+anova(model)
 ```
 
-Now, load the data.
+Partial covariate effects are finite differences of partial dependence. They
+summarise the fitted response function and should not be interpreted causally.
+Correlated predictors may lead to poorly supported predictor combinations.
 
-```{r}
-# load data ---------------------------------------------------------------
-data(Boston)
+```{r pce}
+pce(model, "rm", length_out = 5)
 ```
-
-
-Next, we fit a neural network.
-We will fit a neural network on the respose variable, `medv`, using all covariates and with two hidden nodes. 
-As neural networks require random initial weights to begin learning, we use
-`set.seed()` for reproducibility.
-
-```{r}
-set.seed(100)
-nn <- nnet(medv ~ ., data = Boston, size = 2, trace = FALSE,
-           linout = TRUE, maxit = 1000)
-```
-
-We can then create a `interpretnn` object
-
-```{r intnn, cache = TRUE}
-intnn <- interpretnn(nn, X = Boston[, -ncol(Boston)]) 
-```
-
-A useful summary table can then be produced using the `summary()` function
-
-```{r}
-summary(intnn)
-```
-
-This tells provides us with simple point estimates of the effects, and
-the results from the multiple-parameter Wald test for each input.
-
-We can visualise the covariate effects and their associated uncertainty using
-the `plot()` function, which creates Partial Covariate Effect (PCE) plots.
-
-<!-- ```{r, cache = TRUE} -->
-<!-- plot(intnn, conf_int = TRUE) -->
-<!-- ``` -->
-
-There is also a `plotnn()` function that visualise the significance of each weight
-from the single-parameter Wald test.
-
-
-```{r}
-plotnn(intnn)
-```
-

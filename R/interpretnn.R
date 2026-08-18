@@ -1,764 +1,227 @@
-#' Statistically-Based Neural Networks
+#' Augment a fitted nnet model with statistical summaries
 #'
-#' Return statistically-based outputs for neural networks.
+#' `interpretnn()` validates a deliberately narrow class of models fitted by
+#' [nnet::nnet()] and retains the original fit. It does not refit or select a
+#' neural network.
 #'
-#' @return A list with information of the optimal model.
-#' \itemize{
-#'   \item \code{interpretnn} - object of class interpretnn.
-#'   }
+#' @param object A fitted object inheriting from `"nnet"`.
+#' @param formula The formula used to fit `object`. This may be omitted for an
+#'   `nnet.formula` object.
+#' @param data The original training data.
+#' @param response Either `"continuous"` or `"binary"`. When `NULL`, the
+#'   response type is inferred from the fitted `nnet` object.
+#' @param covariance_tol Relative numerical tolerance used to decide whether
+#'   the penalised information matrix is reliably invertible.
+#' @param objective_tol Relative tolerance for validating the reconstructed
+#'   fitting criterion against `object$value`.
+#' @param ... Reserved for methods.
 #'
-#' @rdname interpretnn
-#' @param ... arguments passed to or from other methods
-#' @return interpretnn object
+#' @return An object of class `"statnnet"` containing the original fit,
+#'   reconstructed model information, covariance calculations, and diagnostics.
 #' @export
-interpretnn <- function(...) UseMethod("interpretnn")
-
-#' @rdname interpretnn
-#' @param object object from nn_fit
-#' @param X matrix of input data 
-#' @param y response variable
-#' @param ... arguments passed to or from other methods
-#' @return interpretnn object
-#' @export
-interpretnn.default <- function(object,  ...) {
-  
-  # intnn <- interpretnn(object$nn, data = object$data, ...)
-  intnn <- interpretnn.nnet(object$nn, data = object$data, ...)
-  
-  return(intnn)
+interpretnn <- function(object, ...) {
+  UseMethod("interpretnn")
 }
 
 #' @rdname interpretnn
-#' @param object nnet object
-#' @param X matrix of input data 
-#' @param ... arguments passed to or from other methods
-#' @return interpretnn object
 #' @export
-interpretnn.nnet <- function(object, data, ...) {
-  if (class(object)[1] != "nnet" & class(object)[1] != "nnet.formula") {
-    stop("Error: Argument must be of class nnet")
-  }
-  
-  X <- stats::model.matrix(object$formula, data = data)[, -1, drop = FALSE] 
-  
-  y <- as.matrix(stats::model.extract(stats::model.frame(object$formula, data = data),
-                                      "response"), ncol = 1)
-  
-  colnames(y) <- as.character(object$terms[[2]])
-  
-  if (is.null(colnames(X))) {
-    colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
-  }
-  
-  intnn_names <- c(
-    "weights", "val", "n_inputs", "n_nodes", "n_layers",
-    "n_param", "n", "loglike", "BIC", "eff", "call", "wald", "wald_sp", "formula",
-    "data", "response", "lambda"
+interpretnn.default <- function(object, ...) {
+  stop(
+    "`object` must inherit from \"nnet\"; statnnet supports no other fitting backends.",
+    call. = FALSE
   )
-  
-  # NOTE: Will need to make more general for multiclass classification
-  if (object$entropy == TRUE) {
-    response <- "binary"
-  } else {
-    response <- "continuous"
+}
+
+#' @rdname interpretnn
+#' @export
+interpretnn.nnet <- function(object, formula = NULL, data = NULL,
+                             response = NULL, covariance_tol = 1e-10,
+                             objective_tol = 1e-6, ...) {
+  if (!inherits(object, "nnet")) {
+    stop("`object` must inherit from \"nnet\".", call. = FALSE)
   }
-  
-  intnn <- sapply(intnn_names, function(x) NULL)
-  
-  intnn$weights <- object$wts
-  
-  intnn$val <- object$value
-  
-  intnn$n_inputs <- object$n[1]
-  
-  intnn$n_nodes <- object$n[2]
-  
-  intnn$n_layers <- 1
-  
-  intnn$n_param <- (intnn$n_inputs + 2) * intnn$n_nodes + 1
-  
-  intnn$n <- nrow(object$residuals)
-  
-  intnn$loglike <- nn_loglike(object, X = X)
-  
-  intnn$BIC <- (-2 * intnn$loglike) + (intnn$n_param * log(intnn$n))
-  
-  intnn$call <- match.call(expand.dots = TRUE)
-  
-  intnn$y <- object$fitted.values + object$residuals
-  if (class(object)[1] == "nnet") {
-    if (length(object$call$y) == 1) {
-      colnames(intnn$y) <- as.character(object$call$y)
-    } else if (length(object$call$y) == 3) {
-      colnames(intnn$y) <- as.character(object$call$y)[3]
+  if (length(list(...)) > 0L) {
+    stop("Unused arguments were supplied to `interpretnn()`.", call. = FALSE)
+  }
+  if (is.null(data)) {
+    stop("`data` must contain the original training data.", call. = FALSE)
+  }
+  if (!is.numeric(covariance_tol) || length(covariance_tol) != 1L ||
+      !is.finite(covariance_tol) || covariance_tol <= 0) {
+    stop("`covariance_tol` must be one positive finite number.", call. = FALSE)
+  }
+  if (!is.numeric(objective_tol) || length(objective_tol) != 1L ||
+      !is.finite(objective_tol) || objective_tol <= 0) {
+    stop("`objective_tol` must be one positive finite number.", call. = FALSE)
+  }
+
+  .validate_nnet_structure(object)
+
+  if (is.null(formula)) {
+    if (is.null(object$terms)) {
+      stop(
+        "`formula` is required because it cannot be recovered from this nnet object.",
+        call. = FALSE
+      )
     }
-    
-  } else if (class(object)[1] == "nnet.formula") {
-    colnames(intnn$y) <- as.character(object$terms[[2]])
+    formula <- stats::formula(object$terms)
   }
-  
-  intnn$lambda <- object$decay
-  
-  intnn$response <- response
-  
-  eff_matrix <- matrix(data = NA, nrow = intnn$n_inputs, ncol = 2)
-  colnames(eff_matrix) <- c("eff", "eff_se")
-  
-  cov_eff <- covariate_eff_pce(intnn$weights, X, intnn$n_nodes,
-                               response = intnn$response)
-  
-  eff_matrix[, 1] <- cov_eff$eff
-  
-  vc <- VC(intnn$weights, X, y, intnn$n_nodes,
-           lambda = intnn$lambda, response = intnn$response)
-  
-  pred <- cov_eff$eff
-  gradient <- cov_eff$jaco
-  
-  var_est <- as.matrix(gradient) %*% vc %*% t(as.matrix(gradient))
-  
-  eff_matrix[, 2] <- sqrt(diag(var_est))
-  
-  intnn$eff <- eff_matrix
-  
-  intnn$wald <- wald_test(X, y, intnn$weights, intnn$n_nodes, 
-                          lambda = intnn$lambda,
-                          response = intnn$response)
-  
-  intnn$wald_sp <- wald_single_parameter(X, y, intnn$weights, intnn$n_nodes,
-                                         lambda = intnn$lambda,
-                                         response = intnn$response)
-  
-  intnn$formula <- object$formula
-  intnn$data <- data
-  
-  class(intnn) <- "interpretnn"
-  
-  return(intnn)
-}
-
-
-#' @rdname interpretnn
-#' @param object nnet object
-#' @param X matrix of input data 
-#' @param y response variable
-#' @param B number of bootstrap replicates
-#' @param ... arguments passed to or from other methods
-#' @return interpretnn object
-#' @export
-interpretnn.keras.engine.training.Model <- function(object, X, y, B = 100, ...) {
-  if (class(object)[1] != "keras.engine.sequential.Sequential") {
-    stop("Error: Argument object must be of class keras.engine.sequential.Sequential")
+  if (!inherits(formula, "formula")) {
+    stop("`formula` must be a formula.", call. = FALSE)
   }
 
-  if (is.null(colnames(X))) {
-    colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
-  }
-
-  if (is.null(y)) {
-    stop("Error: Argument y must not be NULL when class(object) == keras.engine.sequential.Sequential")
-  }
-
-  keras_weights <- keras::get_weights(object)
-  
-  # NOTE: Will need to make more general for multiclass classification
-  if (object$loss$name == "binary_crossentropy") {
-    response <- "binary"
+  inferred_response <- .nnet_response_type(object)
+  if (is.null(response)) {
+    response <- inferred_response
   } else {
-    response <- "continuous"
+    response <- match.arg(response, c("continuous", "binary"))
+    if (!identical(response, inferred_response)) {
+      stop(
+        sprintf(
+          "`response = \"%s\"` is incompatible with the fitted nnet output criterion.",
+          response
+        ),
+        call. = FALSE
+      )
+    }
   }
 
-
-  intnn_names <- c(
-    "weights", "val", "n_inputs", "n_nodes", "n_layers",
-    "n_param", "n", "loglike", "BIC", "eff", "call", "wald", "wald_sp", "X",
-    "y", "B", "response", "lambda"
+  reconstructed <- .reconstruct_nnet_data(
+    object = object,
+    formula = formula,
+    data = data,
+    response = response,
+    evaluation_environment = parent.frame()
   )
 
-  intnn <- sapply(intnn_names, function(x) NULL)
-
-  intnn$weights <- c(
-    as.vector(rbind(keras_weights[[2]], keras_weights[[1]])),
-    c(keras_weights[[4]], keras_weights[[3]])
+  weights <- as.numeric(object$wts)
+  fitted_internal <- .nn_predict_matrix(
+    reconstructed$x,
+    weights,
+    hidden = object$n[2L],
+    response = response
   )
-
-  intnn$val <- sum((nn_pred(X, intnn$weights, ncol(keras_weights[[1]])) - y)^2)
-
-  intnn$n_inputs <- object$layers[[1]]$input_shape[[2]]
-
-  intnn$n_nodes <- object$layers[[2]]$input_shape[[2]]
-
-  intnn$n_layers <- 1
-
-  intnn$n_param <- (intnn$n_inputs + 2) * intnn$n_nodes + 1
-
-  intnn$n <- nrow(X)
-
-  intnn$loglike <- nn_loglike(object, X = X, y = y)
-
-  intnn$BIC <- (-2 * intnn$loglike) + (intnn$n_param * log(intnn$n))
-
-  eff_matrix <- matrix(data = NA, nrow = intnn$n_inputs, ncol = 2)
-  colnames(eff_matrix) <- c("eff", "eff_se")
-  eff_matrix[, 1] <- sapply(1:intnn$n_inputs, function(ind) 
-    covariate_eff_pce(intnn$weights, X, intnn$n_nodes, ind = ind, 
-                      response = response))
-  
-  eff_matrix[, 2] <- sapply(1:intnn$n_inputs, function(ind) 
-    pce_average_delta_method(intnn$weights, X, y, intnn$n_nodes, ind = ind,
-                             alpha = alpha, lambda = lambda, response = response))
-
-  intnn$eff <- eff_matrix
-
-  intnn$call <- match.call()
-
-  intnn$y <- y
-  
-  intnn$response <- response
-  
-  lambda_vec <- c()
-  
-  for (l in 2:(intnn$n_layers + 2)) {
-    
-    lambda_vec <- c(lambda_vec, 
-                    object$get_config()$layers[[l]]$config$kernel_regularizer$config$l2)
-    
-    lambda_vec <- c(lambda_vec, 
-                    object$get_config()$layers[[l]]$config$bias_regularizer$config$l2)
+  fitted_nnet <- as.numeric(object$fitted.values)
+  prediction_error <- max(abs(fitted_internal - fitted_nnet))
+  prediction_scale <- max(1, max(abs(fitted_nnet)))
+  if (!is.finite(prediction_error) ||
+      prediction_error > objective_tol * prediction_scale) {
+    stop(
+      "The reconstructed model matrix does not reproduce the fitted nnet predictions.",
+      call. = FALSE
+    )
   }
-  
-  
-  
-  intnn$lambda <- ifelse(is.null(lambda_vec), 0, 
-                        ifelse(all(lambda_vec == lambda_vec[1]) & 
-                                 (length(lambda_vec) == (intnn$n_layers + 1) * 2),
-                               lambda_vec[1],
-                               stop("Not all weight decay values are the same")))
-  
-  intnn$wald <- wald_test(X, intnn$y, intnn$weights, intnn$n_nodes, 
-                         lambda = intnn$lambda,
-                         response = intnn$response)
-  
-  intnn$wald_sp <- wald_single_parameter(X, intnn$y, intnn$weights, intnn$n_nodes,
-                                        lambda = intnn$lambda,
-                                        response = intnn$response)
 
-  intnn$X <- X
+  objective <- .validate_nnet_objective(
+    object = object,
+    y = reconstructed$y,
+    fitted = fitted_internal,
+    response = response,
+    tolerance = objective_tol
+  )
+  curvature <- .nnet_curvature(
+    object = object,
+    x = reconstructed$x,
+    y = reconstructed$y,
+    response = response,
+    rss = objective$unpenalised,
+    tolerance = covariance_tol
+  )
 
-  intnn$B <- B
+  parameter_names <- names(stats::coef(object))
+  if (is.null(parameter_names) || length(parameter_names) != length(weights)) {
+    parameter_names <- paste0("weight_", seq_along(weights))
+  }
+  names(weights) <- parameter_names
+  dimnames(curvature$hessian_penalised) <- list(parameter_names, parameter_names)
+  dimnames(curvature$hessian_unpenalised) <- list(parameter_names, parameter_names)
+  dimnames(curvature$information_penalised) <- list(parameter_names, parameter_names)
+  dimnames(curvature$information_unpenalised) <- list(parameter_names, parameter_names)
+  if (!is.null(curvature$covariance)) {
+    dimnames(curvature$covariance) <- list(parameter_names, parameter_names)
+    dimnames(curvature$shrinkage) <- list(parameter_names, parameter_names)
+  }
 
-  class(intnn) <- "interpretnn"
+  groups <- .make_term_groups(
+    reconstructed$assign,
+    reconstructed$term_labels,
+    reconstructed$column_names,
+    n_inputs = object$n[1L],
+    n_hidden = object$n[2L]
+  )
 
-  return(intnn)
+  diagnostics <- curvature$diagnostics
+  diagnostics$convergence <- object$convergence
+  diagnostics$objective_agrees <- objective$agrees
+  diagnostics$objective_difference <- objective$difference
+  diagnostics$prediction_max_abs_difference <- prediction_error
+  diagnostics$architecture <- unname(as.integer(object$n))
+  diagnostics$n_parameters <- length(weights)
+  diagnostics$n_observations <- nrow(reconstructed$x)
+  diagnostics$decay <- as.numeric(object$decay)
+
+  if (!identical(as.integer(object$convergence), 0L)) {
+    diagnostics$covariance_available <- FALSE
+    diagnostics$covariance_reason <- paste(
+      "the nnet optimiser did not converge (code",
+      as.integer(object$convergence),
+      ")"
+    )
+    curvature$covariance <- NULL
+    curvature$shrinkage <- NULL
+  }
+
+  result <- list(
+    fit = object,
+    call = match.call(),
+    formula = formula,
+    terms = reconstructed$terms,
+    contrasts = reconstructed$contrasts,
+    xlevels = reconstructed$xlevels,
+    training_data = reconstructed$data,
+    x = reconstructed$x,
+    y = reconstructed$y,
+    response = response,
+    response_levels = reconstructed$response_levels,
+    weights = weights,
+    decay = as.numeric(object$decay),
+    architecture = list(
+      inputs = as.integer(object$n[1L]),
+      hidden = as.integer(object$n[2L]),
+      outputs = as.integer(object$n[3L])
+    ),
+    objective = objective,
+    hessian_penalised = curvature$hessian_penalised,
+    hessian_unpenalised = curvature$hessian_unpenalised,
+    information_penalised = curvature$information_penalised,
+    information_unpenalised = curvature$information_unpenalised,
+    covariance = curvature$covariance,
+    shrinkage = curvature$shrinkage,
+    groups = groups,
+    variables = reconstructed$variables,
+    diagnostics = diagnostics,
+    covariance_tol = covariance_tol
+  )
+  class(result) <- "statnnet"
+
+  if (!isTRUE(diagnostics$covariance_available)) {
+    warning(
+      paste0(
+        "Covariance-based summaries are unavailable: ",
+        diagnostics$covariance_reason,
+        "."
+      ),
+      call. = FALSE
+    )
+  } else if (isTRUE(diagnostics$conditioning_warning)) {
+    warning(
+      sprintf(
+        "The penalised information matrix is poorly conditioned (reciprocal condition number %.3g).",
+        diagnostics$information_rcond
+      ),
+      call. = FALSE
+    )
+  }
+
+  result
 }
-
-#' @export
-methods::setMethod("interpretnn", "keras.engine.training.Model",
-          interpretnn.keras.engine.training.Model)
-
-
-
-
-#' @rdname interpretnn
-#' @param object neuralnet object
-#' @param B number of bootstrap replicates
-#' @param ... arguments passed to or from other methods
-#' @return interpretnn object
-#' @export
-interpretnn.nn <- function(object, B = 100, ...) {
-  if (class(object)[1] != "nn") {
-    stop("Error: Argument must be of class nn")
-  }
-  
-  X <- object$covariate
-  
-  if (is.null(colnames(X))) {
-    colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
-  }
-  
-  intnn_names <- c(
-    "weights", "val", "n_inputs", "n_nodes", "n_layers",
-    "n_param", "n", "loglike", "BIC", "eff", "call", "wald", "wald_sp", "X",
-    "y", "B", "response", "lambda"
-  )
-  
-  # NOTE: Will need to make more general for multiclass classification
-  if (attr(object$err.fct, "type") == "ce") {
-    response <- "binary"
-  } else {
-    response <- "continuous"
-  }
-  
-  intnn <- sapply(intnn_names, function(x) NULL)
-  
-  nn_weights <- unlist(sapply(object$weights[[1]], as.vector))
-  
-  intnn$weights <- nn_weights
-  
-  intnn$val <- object$result.matrix[1, ] * 2
-  
-  intnn$n_inputs <- nrow(object$weights[[1]][[1]]) - 1
-  
-  n_nodes <- sapply(object$weights[[1]], ncol)
-  
-  intnn$n_nodes <- n_nodes[-length(n_nodes)]
-  
-  intnn$n_layers <- length(intnn$n_nodes)
-  
-  intnn$n_param <- sum(c(intnn$n_inputs + 1, intnn$n_nodes + 1) * 
-                        c(intnn$n_nodes, 1))
-  
-  intnn$n <- nrow(object$response)
-  
-  
-  intnn$loglike <- nn_loglike(object)
-  
-  intnn$BIC <- (-2 * intnn$loglike) + (intnn$n_param * log(intnn$n))
-  
-  eff_matrix <- matrix(data = NA, nrow = intnn$n_inputs, ncol = 2)
-  colnames(eff_matrix) <- c("eff", "eff_se")
-  eff_matrix[, 1] <- sapply(1:intnn$n_inputs, function(ind) 
-    covariate_eff_pce(intnn$weights, X, intnn$n_nodes, ind = ind, 
-                      response = response))
-  
-  eff_matrix[, 2] <- sapply(1:intnn$n_inputs, function(ind) 
-    pce_average_delta_method(intnn$weights, X, y, intnn$n_nodes, ind = ind,
-                             alpha = alpha, lambda = lambda, response = response))
-  
-  intnn$eff <- eff_matrix
-  
-  intnn$call <- match.call()
-  
-  intnn$y <- object$response
-  
-  intnn$response <- response
-  
-  # neuralnet does not support weight decay unless you provide your own err.fct 
-  intnn$lambda <- 0 
-  
-  intnn$wald <- wald_test(X, intnn$y, intnn$weights, intnn$n_nodes, 
-                         lambda = intnn$lambda,
-                         response = intnn$response)
-  
-  intnn$wald_sp <- wald_single_parameter(X, intnn$y, intnn$weights, intnn$n_nodes,
-                                        lambda = intnn$lambda,
-                                        response = intnn$response)
-  
-  intnn$X <- X
-  
-  intnn$B <- B
-  
-  class(intnn) <- "interpretnn"
-  
-  return(intnn)
-}
-
-
-#' @rdname interpretnn
-#' @param object ANN object
-#' @param X matrix of input data 
-#' @param B number of bootstrap replicates
-#' @param ... arguments passed to or from other methods
-#' @return interpretnn object
-#' @export
-interpretnn.ANN <- function(object, X, y, B = 100, ...) {
-  
-  # working for single hidden layer
-  
-  if (class(object)[1] != "ANN") {
-    stop("Error: Argument must be of class ANN")
-  }
-  
-  if (is.null(colnames(X))) {
-    colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
-  }
-  
-  # extend for multi-class
-  if (object$Rcpp_ANN$getMeta()$regression) {
-    response <- "continuous"
-  } else {
-    response <- "binary"
-  }
-  
-  intnn_names <- c(
-    "weights", "val", "n_inputs", "n_nodes", "n_layers",
-    "n_param", "n", "loglike", "BIC", "eff", "call", "wald", "wald_sp", "X",
-    "y", "B", "response", "lambda"
-  )
-  
-  intnn <- sapply(intnn_names, function(x) NULL)
-  
-  nn_weights<- c(as.vector(t(cbind(object$Rcpp_ANN$getParams()[[2]][[1]],
-                                   object$Rcpp_ANN$getParams()[[1]][[1]]))),
-                 as.vector(t(cbind(object$Rcpp_ANN$getParams()[[2]][[2]],
-                                   object$Rcpp_ANN$getParams()[[1]][[2]]))))
-  
-  intnn$weights <- nn_weights
-  
-  intnn$val <- object$Rcpp_ANN$getTrainHistory()$train_loss[
-    length(object$Rcpp_ANN$getTrainHistory()$train_loss)]
-  
-  intnn$n_inputs <- object$Rcpp_ANN$getMeta()$num_nodes[1]
-  
-  intnn$n_nodes <- object$Rcpp_ANN$getMeta()$num_nodes[-c(1, length(object$Rcpp_ANN$getMeta()$num_nodes))]
-  
-  intnn$n_layers <- length(intnn$n_nodes)
-  
-  intnn$n_param <- sum(c(intnn$n_inputs + 1, intnn$n_nodes + 1) * 
-                        c(intnn$n_nodes, 1))
-  
-  intnn$n <- nrow(y)
-  
-  intnn$loglike <- nn_loglike(object, X, y)
-  
-  intnn$BIC <- (-2 * intnn$loglike) + (intnn$n_param * log(intnn$n))
-  
-  eff_matrix <- matrix(data = NA, nrow = intnn$n_inputs, ncol = 2)
-  colnames(eff_matrix) <- c("eff", "eff_se")
-  eff_matrix[, 1] <- sapply(1:intnn$n_inputs, function(ind) 
-    covariate_eff_pce(intnn$weights, X, intnn$n_nodes, ind = ind, 
-                      response = response))
-  
-  eff_matrix[, 2] <- sapply(1:intnn$n_inputs, function(ind) 
-    pce_average_delta_method(intnn$weights, X, y, intnn$n_nodes, ind = ind,
-                             alpha = alpha, lambda = lambda, response = response))
-  
-  intnn$eff <- eff_matrix
-  
-  intnn$call <- match.call()
-  
-  intnn$y <- y
-  
-  intnn$response <- response
-    
-  intnn$lambda <- 0 # cannot find way to access L1 / L2 arguments from ANN object
-  
-  
-  intnn$wald <- wald_test(X, intnn$y, intnn$weights, intnn$n_nodes)
-  
-  intnn$wald_sp <- wald_single_parameter(X, intnn$y, intnn$weights, intnn$n_nodes)
-  
-  intnn$X <- X
-  
-  intnn$B <- B
-  
-  class(intnn) <- "interpretnn"
-  
-  return(intnn)
-}
-
-
-#' @rdname interpretnn
-#' @param object luz_module_fitted object
-#' @param X matrix of input data 
-#' @param y response variable
-#' @param B number of bootstrap replicates
-#' @param ... arguments passed to or from other methods
-#' @return interpretnn object
-#' @export
-interpretnn.luz_module_fitted <- function(object, X, y, B = 100, ...) {
-  if (class(object)[1] != "luz_module_fitted") {
-    stop("Error: Argument object must be of class luz_module_fitted")
-  }
-  
-  if (is.null(colnames(X))) {
-    colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
-  }
-  
-  if (is.null(y)) {
-    stop("Error: Argument y must not be NULL when class(object) == keras.engine.sequential.Sequential")
-  }
-  
-  weights <- object$model$parameters
-  
-  
-  intnn_names <- c(
-    "weights", "val", "n_inputs", "n_nodes", "n_layers",
-    "n_param", "n", "loglike", "BIC", "eff", "call", "wald", "wald_sp", "X",
-    "y", "B", "response", "lambda"
-  )
-  
-  # NOTE: Will need to make more general for multiclass classification
-  if (all(levels(factor(y)) %in% c(0, 1)) &
-      length(levels(factor(y))) == 2) {
-    response <- "binary"
-  } else {
-    response <- "continuous"
-  }
-  
-  intnn <- sapply(intnn_names, function(x) NULL)
-  
-  intnn$weights <- c(
-    as.vector(t(cbind(as.matrix(weights$hidden.bias),
-                      as.matrix(weights$hidden.weight)))),
-    cbind(as.matrix(weights$output.bias),
-          as.matrix(weights$output.weight))
-  )
-  
-  
-  intnn$n_inputs <- ncol(weights$hidden.weight)
-  
-  intnn$n_nodes <- length(weights$output.weight)
-  
-  intnn$n_layers <- 1
-  
-  intnn$n_param <- sum(c(intnn$n_inputs + 1, intnn$n_nodes + 1) * 
-                        c(intnn$n_nodes, 1))
-  
-  intnn$n <- nrow(X)
-  
-  if (response == "binary") {
-    intnn$val <- - (y * log(nn_pred(X, intnn$weights, intnn$n_nodes, response = "binary")) +
-      (1 - y) * log(1 - nn_pred(X, intnn$weights, intnn$n_nodes, response = "binary")))
-  } else {
-    intnn$val <- sum((nn_pred(X, intnn$weights, intnn$n_nodes) - y)^2)
-  }
-  
-  intnn$loglike <- nn_loglike(object, X = X, y = y)
-  
-  intnn$BIC <- (-2 * intnn$loglike) + (intnn$n_param * log(intnn$n))
-  
-  eff_matrix <- matrix(data = NA, nrow = intnn$n_inputs, ncol = 2)
-  colnames(eff_matrix) <- c("eff", "eff_se")
-  eff_matrix[, 1] <- sapply(1:intnn$n_inputs, function(ind) 
-    covariate_eff_pce(intnn$weights, X, intnn$n_nodes, ind = ind, 
-                      response = response))
-  
-  eff_matrix[, 2] <- sapply(1:intnn$n_inputs, function(ind) 
-    pce_average_delta_method(intnn$weights, X, y, intnn$n_nodes, ind = ind,
-                             alpha = alpha, lambda = lambda, response = response))
-  
-  intnn$eff <- eff_matrix
-  
-  intnn$call <- match.call()
-  
-  intnn$y <- y
-  
-  intnn$response <- response
-  
-  intnn$lambda <-  ifelse(is.null(object$ctx$opt_hparams$weight_decay), 0,
-                         object$ctx$opt_hparams$weight_decay)
-  
-  intnn$wald <- wald_test(X, intnn$y, intnn$weights, intnn$n_nodes, 
-                         lambda = intnn$lambda,
-                         response = intnn$response)
-  
-  intnn$wald_sp <- wald_single_parameter(X, intnn$y, intnn$weights, intnn$n_nodes,
-                                        lambda = intnn$lambda,
-                                        response = intnn$response)
-  
-  intnn$X <- X
-  
-  intnn$B <- B
-  
-  class(intnn) <- "interpretnn"
-  
-  return(intnn)
-}
-
-
-#' @rdname interpretnn
-#' @param object selectnn object
-#' @param B number of bootstrap replicates
-#' @param ... arguments passed to or from other methods
-#' @return interpretnn object
-#' @export
-interpretnn.selectnn <- function(object, B = 100, ...) {
-  if (class(object)[1] != "selectnn") {
-    stop("Error: Argument must be of class selectnn")
-  }
-  
-  X <- object$X
-  
-  if (is.null(colnames(X))) {
-    colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
-  }
-  
-  intnn_names <- c(
-    "weights", "val", "n_inputs", "n_nodes", "n_layers",
-    "n_param", "n", "loglike", "BIC", "eff", "call", "wald", "wald_sp", "X",
-    "y", "B", "response", "lambda"
-  )
-  
-  # NOTE: Will need to make more general for multiclass classification
-  if (object$task == "regression") {
-    response <- "continuous"
-  } else {
-    response <- "binary"
-  }
-  
-  intnn <- sapply(intnn_names, function(x) NULL)
-  
-  intnn$weights <- object$W_opt
-  
-  intnn$val <- object$value
-  
-  intnn$n_inputs <- object$p
-  
-  intnn$n_nodes <- object$q
-  
-  intnn$n_layers <- 1
-  
-  intnn$n_param <- (intnn$n_inputs + 2) * intnn$n_nodes + 1
-  
-  intnn$n <- nrow(object$X)
-  
-  nn_temp <- nnet::nnet(X, object$y, size = intnn$n_nodes,
-                        linout = response == "continuous", trace = FALSE,
-                        Wts = intnn$weights, maxit = 0)
-  
-  intnn$loglike <- nn_loglike(nn_temp, X = X)
-  
-  intnn$BIC <- (-2 * intnn$loglike) + (intnn$n_param * log(intnn$n))
-  
-  eff_matrix <- matrix(data = NA, nrow = intnn$n_inputs, ncol = 2)
-  colnames(eff_matrix) <- c("eff", "eff_se")
-  eff_matrix[, 1] <- sapply(1:intnn$n_inputs, function(ind) 
-    covariate_eff_pce(intnn$weights, X, intnn$n_nodes, ind = ind, 
-                      response = response))
-  
-  eff_matrix[, 2] <- sapply(1:intnn$n_inputs, function(ind) 
-    pce_average_delta_method(intnn$weights, X, y, intnn$n_nodes, ind = ind,
-                             alpha = alpha, lambda = lambda, response = response))
-  
-  intnn$eff <- eff_matrix
-  
-  intnn$call <- match.call(expand.dots = TRUE)
-  
-  intnn$y <- as.matrix(object$y)
-  
-  colnames(intnn$y) <- as.character(object$call$y)
-  
-  intnn$response <- response
-  
-  intnn$lambda <- if (is.null(object$call$decay)) 0 else object$call$decay
-  
-  intnn$wald <- wald_test(X, intnn$y, intnn$weights, intnn$n_nodes, 
-                         lambda = intnn$lambda,
-                         response = intnn$response)
-  
-  intnn$wald_sp <- wald_single_parameter(X, intnn$y, intnn$weights, intnn$n_nodes,
-                                        lambda = intnn$lambda,
-                                        response = intnn$response)
-  
-  intnn$X <- X
-  
-  intnn$B <- B
-  
-  class(intnn) <- "interpretnn"
-  
-  return(intnn)
-}
-
-interpretnn.deepregression <- function(object, X, y, B = 100, ...) {
-  
-  # need to check and extend to binary
-  
-  if (class(object)[1] != "deepregression") {
-    stop("Error: Argument object must be of class deepregression")
-  }
-  
-  if (is.null(colnames(X))) {
-    colnames(X) <- colnames(X, do.NULL = FALSE, prefix = deparse(substitute(X)))
-  }
-  
-  if (is.null(y)) {
-    stop("Error: Argument y must not be NULL when class(object) == deepregression")
-  }
-  
-  keras_weights <- keras::get_weights(object$model)
-  
-  # NOTE: Will need to make more general for multiclass classification
-  if (object$init_params$family == "bernoulli_prob") {
-    response <- "binary"
-  } else if (object$init_params$family == "normal") {
-    response <- "continuous"
-  }
-  
-  
-  intnn_names <- c(
-    "weights", "val", "n_inputs", "n_nodes", "n_layers",
-    "n_param", "n", "loglike", "BIC", "eff", "call", "wald", "wald_sp", "X",
-    "y", "B", "response", "lambda"
-  )
-  
-  intnn <- sapply(intnn_names, function(x) NULL)
-  
-  intnn$weights <- c(
-    as.vector(rbind(keras_weights[[2]], keras_weights[[1]])),
-    c(keras_weights[[4]], keras_weights[[3]])
-  )
-  
-  intnn$val <- sum((nn_pred(X, intnn$weights, ncol(keras_weights[[1]])) - y)^2)
-  
-  intnn$n_inputs <- object$model$layers[[1]]$input_shape[[1]][[2]]
-  
-  intnn$n_nodes <- object$model$layers[[4]]$input_shape[[2]]
-  
-  intnn$n_layers <- 1
-  
-  intnn$n_param <- (intnn$n_inputs + 2) * intnn$n_nodes + 1
-  
-  intnn$n <- nrow(X)
-  
-  intnn$loglike <- nn_loglike(object$model, X = X, y = y)
-  
-  intnn$BIC <- (-2 * intnn$loglike) + (intnn$n_param * log(intnn$n))
-  
-  eff_matrix <- matrix(data = NA, nrow = intnn$n_inputs, ncol = 2)
-  colnames(eff_matrix) <- c("eff", "eff_se")
-  eff_matrix[, 1] <- sapply(1:intnn$n_inputs, function(ind) 
-    covariate_eff_pce(intnn$weights, X, intnn$n_nodes, ind = ind, 
-                      response = response))
-  
-  eff_matrix[, 2] <- sapply(1:intnn$n_inputs, function(ind) 
-    pce_average_delta_method(intnn$weights, X, y, intnn$n_nodes, ind = ind,
-                             alpha = alpha, lambda = lambda, response = response))
-  
-  intnn$eff <- eff_matrix
-  
-  intnn$call <- match.call()
-  
-  intnn$y <- y
-  
-  intnn$response <- response
-  
-  lambda_vec <- c()
-  
-  # need to find how to access penalties
-  
-  for (l in 2:(intnn$n_layers + 2)) {
-    
-    # lambda_vec <- c(lambda_vec, 
-    #                 object$get_config()$layers[[l]]$config$kernel_regularizer$config$l2)
-    # 
-    # lambda_vec <- c(lambda_vec, 
-    #                 object$get_config()$layers[[l]]$config$bias_regularizer$config$l2)
-  }
-  
-  
-  
-  intnn$lambda <- ifelse(is.null(lambda_vec), 0, 
-                        ifelse(all(lambda_vec == lambda_vec[1]) & 
-                                 (length(lambda_vec) == (intnn$n_layers + 1) * 2),
-                               lambda_vec[1],
-                               stop("Not all weight decay values are the same")))
-  
-  intnn$wald <- wald_test(X, intnn$y, intnn$weights, intnn$n_nodes, 
-                         lambda = intnn$lambda,
-                         response = intnn$response)
-  
-  intnn$wald_sp <- wald_single_parameter(X, intnn$y, intnn$weights, intnn$n_nodes,
-                                        lambda = intnn$lambda,
-                                        response = intnn$response)
-  
-  intnn$X <- X
-  
-  intnn$B <- B
-  
-  class(intnn) <- "interpretnn"
-  
-  return(intnn)
-}
-
-

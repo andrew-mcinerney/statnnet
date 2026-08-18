@@ -32,3 +32,25 @@
 #'   
 "Boston"
 
+#' Standardized Medical Insurance Data
+#'
+#' A preprocessed version of a medical insurance cost data set. Numeric
+#' covariates and the response have been standardized; categorical predictors
+#' are represented by indicator columns. Because these indicators are already
+#' expanded, grouped factor tests require explicit factor data before fitting
+#' if factor-level inference is desired.
+#'
+#' @format A data frame with 1,338 rows and 9 variables:
+#' \describe{
+#'   \item{age}{Standardized age.}
+#'   \item{sexmale}{Indicator for male sex.}
+#'   \item{bmi}{Standardized body mass index.}
+#'   \item{children}{Standardized number of children.}
+#'   \item{smokeryes}{Indicator for smoking.}
+#'   \item{regionnorthwest}{Indicator for the northwest region.}
+#'   \item{regionsoutheast}{Indicator for the southeast region.}
+#'   \item{regionsouthwest}{Indicator for the southwest region.}
+#'   \item{charges}{Standardized insurance charges.}
+#' }
+"insurance"
+

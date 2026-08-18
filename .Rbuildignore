@@ -1,11 +1,15 @@
-^interpretnn\.Rproj$
+^statnnet\.Rproj$
 ^\.Rproj\.user$
 ^LICENSE\.md$
 ^\.github$
 ^README\.Rmd$
+^README\.html$
+^MIGRATION\.md$
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
 ^doc$
 ^Meta$
 ^cran-comments\.md$
+^statnnet_[0-9.]+\.tar\.gz$
+^statnnet\.Rcheck$

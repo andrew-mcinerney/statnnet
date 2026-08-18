@@ -1,44 +1,37 @@
-Package: interpretnn
-Title: Interpreting Neural Networks From a Statistical Perspective
-Version: 0.0.0.9000
+Package: statnnet
+Title: Regression-Style Statistical Summaries for Neural Networks Fitted with 'nnet'
+Version: 0.1.0.9000
 Authors@R: c(
     person("Andrew", "McInerney", , "andrew.mcinerney@ul.ie", role = c("aut",
     "cre", "cph"), comment = c(ORCID = "0000-0002-2348-2159")),
     person("Kevin", "Burke", , "kevin.burke@ul.ie", role = "aut")
   )
-Description: Extends exisitng neural network packages in R to have more
-    statistically-based outputs. Allows for the calcualtions of p-values for
-    neural network inputs, covariate-effect plots with their associated
-    uncertainty, and display interpretable summaries. See McInerney and Burke
-    (2023) "Feedforward neural networks as statistical models: Improving
-    interpretability through uncertainty quantification" for more details.
-    <arXiv:2311.08139>.
+Author: Andrew McInerney [aut, cre, cph] (<https://orcid.org/0000-0002-2348-2159>),
+    Kevin Burke [aut]
+Maintainer: Andrew McInerney <andrew.mcinerney@ul.ie>
+Description: Adds regression-style statistical summaries to small,
+    single-hidden-layer neural networks fitted with 'nnet'. The package
+    validates the fitted model, reconstructs its objective and curvature,
+    estimates a penalised sandwich covariance matrix, provides individual and
+    grouped Wald-type diagnostics, and computes partial covariate effects with
+    uncertainty. It retains the original fit and does not fit or select neural
+    networks. Methods follow McInerney and Burke (2023)
+    <doi:10.48550/arXiv.2311.08139>.
 License: GPL (>= 3) + file LICENSE
-URL: https://github.com/andrew-mcinerney/interpretnn,
-    https://andrew-mcinerney.github.io/interpretnn/
-BugReports: https://github.com/andrew-mcinerney/interpretnn/issues
+URL: https://github.com/andrew-mcinerney/statnnet,
+    https://andrew-mcinerney.github.io/statnnet/
+BugReports: https://github.com/andrew-mcinerney/statnnet/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Imports: 
-    MASS,
-    methods,
-    nnet,
-    numDeriv,
-    magrittr,
-    car,
-    rlang,
-    R6
+    nnet
 Suggests: 
     knitr,
     rmarkdown,
-    keras,
-    caret,
-    torch,
-    luz,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Depends: 
-    R (>= 2.10)
+    R (>= 3.6.0)
 LazyData: true
 Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0

@@ -4,62 +4,47 @@
 \alias{interpretnn}
 \alias{interpretnn.default}
 \alias{interpretnn.nnet}
-\alias{interpretnn.keras.engine.training.Model}
-\alias{interpretnn.nn}
-\alias{interpretnn.ANN}
-\alias{interpretnn.luz_module_fitted}
-\alias{interpretnn.selectnn}
-\title{Statistically-Based Neural Networks}
+\title{Augment a fitted nnet model with statistical summaries}
 \usage{
-interpretnn(...)
+interpretnn(object, ...)
 
-interpretnn.default(object, ...)
+\method{interpretnn}{default}(object, ...)
 
-interpretnn.nnet(object, data, ...)
-
-interpretnn.keras.engine.training.Model(object, X, y, B = 100, ...)
-
-interpretnn.nn(object, B = 100, ...)
-
-interpretnn.ANN(object, X, y, B = 100, ...)
-
-interpretnn.luz_module_fitted(object, X, y, B = 100, ...)
-
-interpretnn.selectnn(object, B = 100, ...)
+\method{interpretnn}{nnet}(
+  object,
+  formula = NULL,
+  data = NULL,
+  response = NULL,
+  covariance_tol = 1e-10,
+  objective_tol = 1e-06,
+  ...
+)
 }
 \arguments{
-\item{...}{arguments passed to or from other methods}
+\item{object}{A fitted object inheriting from \code{"nnet"}.}
 
-\item{object}{selectnn object}
+\item{...}{Reserved for methods.}
 
-\item{X}{matrix of input data}
+\item{formula}{The formula used to fit \code{object}. This may be omitted for an
+\code{nnet.formula} object.}
 
-\item{y}{response variable}
+\item{data}{The original training data.}
 
-\item{B}{number of bootstrap replicates}
+\item{response}{Either \code{"continuous"} or \code{"binary"}. When \code{NULL}, the
+response type is inferred from the fitted \code{nnet} object.}
+
+\item{covariance_tol}{Relative numerical tolerance used to decide whether
+the penalised information matrix is reliably invertible.}
+
+\item{objective_tol}{Relative tolerance for validating the reconstructed
+fitting criterion against \code{object$value}.}
 }
 \value{
-A list with information of the optimal model.
-\itemize{
-\item \code{interpretnn} - object of class interpretnn.
-}
-
-interpretnn object
-
-interpretnn object
-
-interpretnn object
-
-interpretnn object
-
-interpretnn object
-
-interpretnn object
-
-interpretnn object
-
-interpretnn object
+An object of class \code{"statnnet"} containing the original fit,
+reconstructed model information, covariance calculations, and diagnostics.
 }
 \description{
-Return statistically-based outputs for neural networks.
+\code{interpretnn()} validates a deliberately narrow class of models fitted by
+\code{\link[nnet:nnet]{nnet::nnet()}} and retains the original fit. It does not refit or select a
+neural network.
 }

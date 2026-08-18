@@ -2,31 +2,52 @@
 % Please edit documentation in R/pce.R
 \name{pce}
 \alias{pce}
-\title{Partial covariate effect}
+\title{Partial covariate effects for a fitted statnnet model}
 \usage{
-pce(W, X, q, ind, x_r = c(-3, 3), len = 101, d = "sd", response = "continuous")
+pce(
+  object,
+  variable,
+  values = NULL,
+  d = NULL,
+  length_out = 101L,
+  type = c("curve", "average"),
+  uncertainty = c("delta", "simulation", "none"),
+  level = 0.95,
+  nsim = 1000L,
+  seed = NULL
+)
 }
 \arguments{
-\item{W}{Weight vector}
+\item{object}{A \code{statnnet} object.}
 
-\item{X}{Data}
+\item{variable}{Name of an original predictor.}
 
-\item{q}{Number of hidden units}
+\item{values}{Values at which to evaluate a continuous predictor. By
+default, an evenly spaced grid over the observed range is used.}
 
-\item{ind}{index of column to plot}
+\item{d}{Finite-difference step for a continuous predictor. The default is
+one observed standard deviation. Binary predictors are always compared
+from 0 to 1 and factors against their first level.}
 
-\item{x_r}{x-axis range}
+\item{length_out}{Number of grid points for a continuous predictor.}
 
-\item{len}{number of breaks for x-axis}
+\item{type}{\code{"curve"} for evaluations over \code{values}, or \code{"average"} for a
+point summary averaged over observed predictor values.}
 
-\item{d}{difference value}
+\item{uncertainty}{One of \code{"delta"}, \code{"simulation"}, or \code{"none"}.}
 
-\item{response}{Response type: \code{"continuous"} (default) or
-\code{"binary"}}
+\item{level}{Confidence level.}
+
+\item{nsim}{Number of simulation draws when \code{uncertainty = "simulation"}.}
+
+\item{seed}{Optional simulation seed.}
 }
 \value{
-Effect for each input
+A data frame of class \code{"statnnet_pce"}.
 }
 \description{
-Partial covariate effect
+Computes finite differences of the partial-dependence function. These are
+descriptive summaries of the fitted response surface, not causal effects.
+Correlated predictors can cause evaluations at poorly supported covariate
+combinations.
 }
