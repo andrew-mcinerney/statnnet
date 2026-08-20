@@ -33,7 +33,7 @@ fit <- nnet(
   trace = FALSE
 )
 
-model <- interpretnn(
+model <- statnnet(
   fit,
   formula = medv ~ rm + lstat + chas,
   data = Boston,

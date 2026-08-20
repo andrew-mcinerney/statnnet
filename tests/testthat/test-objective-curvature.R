@@ -2,7 +2,7 @@ test_that("Gaussian nnet objectives are reconstructed exactly", {
   data <- make_gaussian_data()
   for (decay in c(0, 0.2)) {
     fit <- fit_gaussian(data, decay = decay)
-    model <- suppressWarnings(interpretnn(fit, data = data, response = "continuous"))
+    model <- suppressWarnings(statnnet(fit, data = data, response = "continuous"))
     rss <- sum((data$y - as.numeric(fit$fitted.values))^2)
 
     expect_equal(fit$value, rss + decay * sum(fit$wts^2), tolerance = 1e-7)
@@ -17,7 +17,7 @@ test_that("binary entropy objectives are reconstructed exactly", {
   y <- as.numeric(data$y) - 1
   for (decay in c(0, 0.2)) {
     fit <- fit_binary(data, decay = decay)
-    model <- suppressWarnings(interpretnn(fit, data = data, response = "binary"))
+    model <- suppressWarnings(statnnet(fit, data = data, response = "binary"))
     probability <- pmin(
       pmax(as.numeric(fit$fitted.values), .Machine$double.eps),
       1 - .Machine$double.eps
@@ -39,7 +39,7 @@ test_that("penalty removal and likelihood scaling follow the documented conventi
   data <- make_gaussian_data()
   decay <- 0.2
   fit <- fit_gaussian(data, decay = decay)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   expected_h0 <- fit$Hessian - 2 * decay * diag(length(fit$wts))
   sigma2 <- sum((data$y - as.numeric(fit$fitted.values))^2) / nrow(data)
 
@@ -52,7 +52,7 @@ test_that("penalty removal and likelihood scaling follow the documented conventi
 
   binary_data <- make_binary_data()
   binary_fit <- fit_binary(binary_data, decay = decay)
-  binary_model <- suppressWarnings(interpretnn(binary_fit, data = binary_data))
+  binary_model <- suppressWarnings(statnnet(binary_fit, data = binary_data))
   expect_equal(
     unname(binary_model$information_unpenalised),
     binary_fit$Hessian - 2 * decay * diag(length(binary_fit$wts)),
@@ -73,7 +73,7 @@ test_that("stored nnet Hessian agrees with a numerical objective Hessian", {
     maxit = 1000,
     trace = FALSE
   )
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   objective <- function(weights) {
     prediction <- statnnet:::.nn_predict_matrix(
       model$x, weights, hidden = 1, response = "continuous"
@@ -100,7 +100,7 @@ test_that("stored nnet Hessian agrees with a numerical objective Hessian", {
 test_that("covariance is symmetric and zero decay reduces to inverse information", {
   data <- make_gaussian_data(160)
   fit <- fit_gaussian(data, decay = 0)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   skip_if_not(model$diagnostics$covariance_available)
 
   expect_equal(vcov(model), t(vcov(model)), tolerance = 1e-10)
@@ -116,7 +116,7 @@ test_that("singular curvature prevents covariance reporting", {
   fit <- fit_gaussian(data)
   fit$Hessian[,] <- 0
   expect_warning(
-    model <- interpretnn(fit, data = data),
+    model <- statnnet(fit, data = data),
     "Covariance-based summaries are unavailable"
   )
   expect_false(model$diagnostics$covariance_available)
@@ -126,7 +126,7 @@ test_that("singular curvature prevents covariance reporting", {
 test_that("a missing stored Hessian is recomputed from the original data", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data, Hess = FALSE)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
 
   expect_identical(model$diagnostics$hessian_source, "recomputed")
   expect_equal(

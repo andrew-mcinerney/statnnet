@@ -1,7 +1,7 @@
 test_that("analytic prediction gradients agree with finite differences", {
   data <- make_binary_data()
   fit <- fit_binary(data)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   x <- model$x[1:5, , drop = FALSE]
   analytic <- statnnet:::.nn_gradient_matrix(
     x,
@@ -34,7 +34,7 @@ test_that("binary PCE is the direct zero-to-one partial-dependence contrast", {
     y ~ x + z, data = data, size = 1, linout = TRUE,
     decay = 0.1, Hess = TRUE, maxit = 1000, trace = FALSE
   )
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   result <- pce(model, "z", uncertainty = "none")
   low <- high <- data
   low$z <- 0
@@ -52,7 +52,7 @@ test_that("binary PCE is the direct zero-to-one partial-dependence contrast", {
 test_that("delta-method PCE standard errors match direct matrix calculations", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   skip_if_not(model$diagnostics$covariance_available)
   result <- pce(model, "x1", values = 0, d = 0.5)
   scenarios <- statnnet:::.pce_scenarios(model, "x1", 0, 0.5, 2, FALSE)
@@ -70,7 +70,7 @@ test_that("delta-method PCE standard errors match direct matrix calculations", {
 test_that("simulation intervals are reproducible with a fixed seed", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   skip_if_not(model$diagnostics$covariance_available)
   first <- pce(
     model, "x1", values = c(-0.5, 0.5), d = 0.25,
@@ -87,7 +87,7 @@ test_that("factor PCEs preserve fitted levels and contrasts", {
   data <- make_gaussian_data()
   contrasts(data$f) <- contr.sum(3)
   fit <- fit_gaussian(data)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   result <- pce(model, "f", uncertainty = "none")
 
   expect_equal(nrow(result), 2L)

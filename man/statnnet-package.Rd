@@ -2,7 +2,6 @@
 % Please edit documentation in R/statnnet-package.R
 \docType{package}
 \name{statnnet-package}
-\alias{statnnet}
 \alias{statnnet-package}
 \title{statnnet: statistical summaries for fitted nnet models}
 \description{

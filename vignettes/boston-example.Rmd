@@ -40,7 +40,7 @@ partial covariate effects.
 ```{r augment}
 summary(fit)
 
-model <- interpretnn(
+model <- statnnet(
   fit,
   formula = medv ~ rm + lstat + chas,
   data = Boston,

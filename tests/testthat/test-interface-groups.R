@@ -1,7 +1,7 @@
 test_that("the original fit is retained and prediction delegates to nnet", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   newdata <- data[1:8, ]
   newdata$f <- factor(newdata$f, levels = rev(levels(data$f)))
 
@@ -24,7 +24,7 @@ test_that("fitted formula transformations are retained for new data", {
     maxit = 1000,
     trace = FALSE
   )
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   newdata <- data.frame(x = c(-1, 0, 1))
 
   expect_equal(predict(model, newdata), predict(fit, newdata))
@@ -38,7 +38,7 @@ test_that("factor columns are grouped from model-matrix assignments", {
   data <- make_gaussian_data()
   contrasts(data$f) <- contr.sum(3)
   fit <- fit_gaussian(data)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   grouped <- anova(model)
   factor_row <- grouped[grouped$term == "f", ]
 
@@ -57,7 +57,7 @@ test_that("factor columns are grouped from model-matrix assignments", {
 test_that("grouped Wald calculations use effective degrees of freedom", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   skip_if_not(model$diagnostics$covariance_available)
   result <- anova(model)
   group <- model$groups$x1
@@ -79,19 +79,19 @@ test_that("unsupported nnet structures and backends fail early", {
     x, data$y, size = 1, linout = TRUE, skip = TRUE, trace = FALSE
   )
   expect_error(
-    interpretnn(skip_fit, formula = y ~ x1 + x2, data = data),
+    statnnet(skip_fit, formula = y ~ x1 + x2, data = data),
     "Skip-layer"
   )
-  expect_error(interpretnn(list()), "must inherit")
+  expect_error(statnnet(list()), "must inherit")
 
   fit <- fit_gaussian(data)
   fit$call$mask <- quote(rep(TRUE, length(wts)))
-  expect_error(interpretnn(fit, data = data), "mask")
+  expect_error(statnnet(fit, data = data), "mask")
 
   class_data <- transform(data, y = factor(rep(c("a", "b", "c", "a"), 10)))
   set.seed(4108)
   softmax_fit <- nnet::nnet(y ~ x1, data = class_data, size = 1, trace = FALSE)
-  expect_error(interpretnn(softmax_fit, data = class_data), "Softmax")
+  expect_error(statnnet(softmax_fit, data = class_data), "Softmax")
 })
 
 test_that("non-unit case weights are rejected", {
@@ -108,7 +108,7 @@ test_that("non-unit case weights are rejected", {
     trace = FALSE
   )
   expect_error(
-    interpretnn(fit, data = data),
+    statnnet(fit, data = data),
     "Case weights other than one"
   )
 })
@@ -118,7 +118,7 @@ test_that("non-convergence disables covariance summaries", {
   fit <- fit_gaussian(data)
   fit$convergence <- 1L
   expect_warning(
-    model <- interpretnn(fit, data = data),
+    model <- statnnet(fit, data = data),
     "did not converge"
   )
   expect_false(model$diagnostics$covariance_available)
@@ -128,7 +128,7 @@ test_that("non-convergence disables covariance summaries", {
 test_that("summary and anova return structured objects", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
-  model <- suppressWarnings(interpretnn(fit, data = data))
+  model <- suppressWarnings(statnnet(fit, data = data))
   result <- summary(model, weights = TRUE)
 
   expect_s3_class(result, "summary.statnnet")

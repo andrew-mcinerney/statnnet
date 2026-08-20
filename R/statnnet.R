@@ -1,6 +1,6 @@
 #' Augment a fitted nnet model with statistical summaries
 #'
-#' `interpretnn()` validates a deliberately narrow class of models fitted by
+#' `statnnet()` validates a deliberately narrow class of models fitted by
 #' [nnet::nnet()] and retains the original fit. It does not refit or select a
 #' neural network.
 #'
@@ -19,29 +19,29 @@
 #' @return An object of class `"statnnet"` containing the original fit,
 #'   reconstructed model information, covariance calculations, and diagnostics.
 #' @export
-interpretnn <- function(object, ...) {
-  UseMethod("interpretnn")
+statnnet <- function(object, ...) {
+  UseMethod("statnnet")
 }
 
-#' @rdname interpretnn
+#' @rdname statnnet
 #' @export
-interpretnn.default <- function(object, ...) {
+statnnet.default <- function(object, ...) {
   stop(
     "`object` must inherit from \"nnet\"; statnnet supports no other fitting backends.",
     call. = FALSE
   )
 }
 
-#' @rdname interpretnn
+#' @rdname statnnet
 #' @export
-interpretnn.nnet <- function(object, formula = NULL, data = NULL,
-                             response = NULL, covariance_tol = 1e-10,
-                             objective_tol = 1e-6, ...) {
+statnnet.nnet <- function(object, formula = NULL, data = NULL,
+                          response = NULL, covariance_tol = 1e-10,
+                          objective_tol = 1e-6, ...) {
   if (!inherits(object, "nnet")) {
     stop("`object` must inherit from \"nnet\".", call. = FALSE)
   }
   if (length(list(...)) > 0L) {
-    stop("Unused arguments were supplied to `interpretnn()`.", call. = FALSE)
+    stop("Unused arguments were supplied to `statnnet()`.", call. = FALSE)
   }
   if (is.null(data)) {
     stop("`data` must contain the original training data.", call. = FALSE)
