@@ -207,7 +207,9 @@ For the delta method, the gradient of the PCE with respect to \(\hat{\theta}\) i
   \widehat{\mathrm{Cov}}(\hat{\theta})
   \nabla_{\hat{\theta}}\hat{\beta}(x^{(j)},d).
 \] This gives an analytic approximation to the variance, and, therefore, the standard error of the PCE at each plotted covariate value.
-Alternatively, uncertainty can be obtained by simulating parameter vectors from the approximate sampling distribution of \(\hat{\theta}\) and recomputing the PCE for each simulated set of parameters as in \citet{mandel2013simulation}.
+The corresponding normal-approximation intervals are pointwise intervals, not simultaneous confidence bands over the complete curve.
+Alternatively, pointwise percentile intervals can be obtained by simulating parameter vectors from the approximate sampling distribution of \(\hat{\theta}\) and recomputing the PCE for each simulated set of parameters as in \citet{mandel2013simulation}.
+Both forms of interval are conditional on the selected architecture, value of \code{decay}, local solution, and approximate parameter covariance.
 
 The package also provides a single point-estimate covariate effect by averaging the PCE over the observed values of the covariate: \[
    \hat{\tau}_j
@@ -215,7 +217,25 @@ The package also provides a single point-estimate covariate effect by averaging 
    \frac{1}{n}
    \sum_{i=1}^n
    \hat{\beta}(x_{ij}, d).
-\] This value is reported in the package summary output and is accompanied by a standard error.
+\] This average partial-dependence contrast is available from \code{summary(object, effects = "partial")} and is accompanied by a standard error.
+Because its direct calculation averages over all combinations of the observed focal and remaining covariate values, its computational cost can be appreciable.
+
+For continuous covariates, the default summary instead reports the faster average observed-row finite difference
+\[
+  \hat{\tau}^{\mathrm{row}}_j
+  =
+  \frac{1}{n}
+  \sum_{i=1}^n
+  \left\{
+    \mathrm{NN}(x_i + d e_j, \hat{\theta})
+    -
+    \mathrm{NN}(x_i, \hat{\theta})
+  \right\},
+\]
+where \(e_j\) selects covariate \(j\).
+This estimand changes the focal covariate within each observed row and requires only \(O(n)\) prediction evaluations.
+It generally differs from the average partial-dependence contrast when the fitted network contains interactions; the two coincide for additive fitted response functions.
+For binary and categorical covariates, the fixed reference contrasts have the same rowwise and partial-dependence interpretations.
 Together, the Wald-type summaries and PCE plots provide the two pieces of information usually sought from regression-style output: whether a covariate appears to contribute to the fitted model, and how the fitted response changes with that covariate.
 
 \section{Relationship to existing software}\label{sec:software}
@@ -258,21 +278,21 @@ After conversion, \pkg{statnnet} retains the original fit and adds the statistic
 \centering
 \begin{tabular}[t]{l|l|l}
 \hline
-Task & Native nnet object & statnnet augmentation\\
+Task & nnet & statnnet\\
 \hline
-Model fitting & Fits the network by BFGS. & Does not refit the model.\\
+Model fitting & Fits by BFGS. & Retains the fit; no refitting.\\
 \hline
-Default summary & Architecture, options, and connection weights. & PCEs, standard errors, and grouped Wald-type summaries.\\
+Default summary & Architecture and connection weights. & Effects and grouped Wald summaries.\\
 \hline
-Parameter covariance & Not available for a general nnet fit. & Penalty-adjusted sandwich estimate.\\
+Parameter covariance & Not generally supplied. & Penalised sandwich estimate.\\
 \hline
-Covariate-level assessment & Not provided. & Grouped Wald-type summaries, including factors.\\
+Covariate-level assessment & Not provided. & Grouped Wald summaries.\\
 \hline
-Covariate-effect description & Not provided. & PCE summaries and plots with uncertainty intervals.\\
+Covariate-effect description & Not provided. & PCE summaries and plots.\\
 \hline
-Numerical diagnostics & Convergence code and optional Hessian. & Convergence and covariance checks.\\
+Numerical diagnostics & Convergence; optional Hessian. & Adds covariance checks.\\
 \hline
-Prediction & Provided by predict.nnet(). & Delegates to the retained nnet fit.\\
+Prediction & Provided by `predict.nnet()`. & Delegates to the retained fit.\\
 \hline
 \end{tabular}
 \end{table}
@@ -302,7 +322,7 @@ The package does not support deep architectures, multiple hidden layers, or fitt
 The data contain information on \(n = 1338\) insurance beneficiaries.
 The response variable, \code{charges}, is the total medical expenses charged to an insurance plan.
 The explanatory variables are the beneficiary's age, sex, body mass index, number of children covered by the plan, smoking status, and region of residence.
-The version of the data included in \pkg{statnnet} is already centred, scaled, and dummy encoded, so the factor variables appear as binary input columns.
+The version of the data included in \pkg{statnnet} is already centred, scaled, and dummy encoded, so the factor variables initially appear as binary input columns.
 
 \begin{verbatim}
 library(statnnet)
@@ -333,14 +353,36 @@ head(insurance[, c("age", "sexmale", "bmi", "children", "smokeryes", "charges")]
 #> 6 -0.5841316       0 -0.8073542 -0.90827406         0 -0.7856145
 \end{verbatim}
 
+To demonstrate the package's factor grouping, we reconstruct the original region factor from its mutually exclusive indicator columns and remove those columns before fitting.
+The resulting model matrix is unchanged apart from retaining the mapping of its three region columns to one formula term.
+
+\begin{verbatim}
+insurance_analysis <- insurance
+insurance_analysis$region <- factor(
+  ifelse(
+    insurance$regionnorthwest == 1,
+    "northwest",
+    ifelse(
+      insurance$regionsoutheast == 1,
+      "southeast",
+      ifelse(insurance$regionsouthwest == 1, "southwest", "northeast")
+    )
+  ),
+  levels = c("northeast", "northwest", "southeast", "southwest")
+)
+insurance_analysis[c(
+  "regionnorthwest", "regionsoutheast", "regionsouthwest"
+)] <- NULL
+\end{verbatim}
+
 For this example, we model \code{charges} using all available covariates:
 
 \begin{verbatim}
 insurance_formula <- charges ~ .
 \end{verbatim}
 
-The variables include both continuous covariates, such as \code{age} and \code{bmi}, and dummy variables representing categorical covariates, such as \code{sexmale}, \code{smokeryes}, and the regional indicators.
-The example is therefore useful for illustrating input-level summaries and the additional care required when a categorical covariate is represented by several dummy variables.
+The variables include continuous covariates, such as \code{age} and \code{bmi}; binary indicator covariates, such as \code{sexmale} and \code{smokeryes}; and the reconstructed \code{region} factor.
+The example therefore illustrates both input-level summaries and joint term-level summaries when a categorical covariate expands to several model-matrix columns.
 
 \subsection{Fitting the neural network}\label{fitting-the-neural-network}
 
@@ -354,7 +396,7 @@ nnet_fits <- replicate(
   10,
   nnet(
     insurance_formula,
-    data = insurance,
+    data = insurance_analysis,
     size = 2,
     linout = TRUE,
     decay = 0.01,
@@ -408,7 +450,7 @@ It can be augmented with the model information required by \pkg{statnnet}:
 snn <- statnnet(
   object = nn,
   formula = insurance_formula,
-  data = insurance,
+  data = insurance_analysis,
   response = "continuous"
 )
 \end{verbatim}
@@ -453,150 +495,61 @@ summary(snn)
 #> Response: continuous; architecture: 8-2-1
 #> 
 #> Average predictive finite-difference effects
-#>         variable                               contrast         value step
-#>              age average observed-row finite difference -1.724186e-16    1
-#>          sexmale                                  1 - 0  1.000000e+00    1
-#>              bmi average observed-row finite difference -2.097737e-16    1
-#>         children average observed-row finite difference -8.764235e-17    1
-#>        smokeryes                                  1 - 0  1.000000e+00    1
-#>  regionnorthwest                                  1 - 0  1.000000e+00    1
-#>  regionsoutheast                                  1 - 0  1.000000e+00    1
-#>  regionsouthwest                                  1 - 0  1.000000e+00    1
+#>   variable                               contrast         value step
+#>        age average observed-row finite difference -1.724186e-16    1
+#>    sexmale                                  1 - 0  1.000000e+00    1
+#>        bmi average observed-row finite difference -2.097737e-16    1
+#>   children average observed-row finite difference -8.764235e-17    1
+#>  smokeryes                                  1 - 0  1.000000e+00    1
+#>     region                  northwest - northeast            NA   NA
+#>     region                  southeast - northeast            NA   NA
+#>     region                  southwest - northeast            NA   NA
 #>     estimate  std_error    conf_low    conf_high
 #>   0.31363077 0.01112587  0.29182447  0.335437066
 #>  -0.04643133 0.02006795 -0.08576379 -0.007098873
 #>   0.14386456 0.01080637  0.12268446  0.165044654
 #>   0.05046739 0.00994552  0.03097453  0.069960252
 #>   1.97032148 0.02579351  1.91976713  2.020875825
-#>  -0.03036991 0.02836408 -0.08596249  0.025222668
-#>  -0.06996181 0.02847014 -0.12576226 -0.014161372
-#>  -0.09431429 0.02818355 -0.14955303 -0.039075548
+#>  -0.03099674 0.02894994 -0.08773758  0.025744088
+#>  -0.07110343 0.02911544 -0.12816865 -0.014038217
+#>  -0.09547673 0.02876126 -0.15184776 -0.039105687
 #> 
 #> Grouped input-to-hidden Wald summaries
-#>             term   model_columns n_weights effective_df wald_chisq      p_value
-#>              age             age         2     1.997897  25.809166 2.478255e-06
-#>          sexmale         sexmale         2     1.997447   4.602134 9.993031e-02
-#>              bmi             bmi         2     1.989125 106.151550 8.683343e-24
-#>         children        children         2     1.999329  14.285650 7.898082e-04
-#>        smokeryes       smokeryes         2     1.841755 165.817646 6.588393e-37
-#>  regionnorthwest regionnorthwest         2     1.995549   1.768293 4.120538e-01
-#>  regionsoutheast regionsoutheast         2     1.994980   5.089632 7.813126e-02
-#>  regionsouthwest regionsouthwest         2     1.994838   8.350457 1.528435e-02
-#>  status
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
+#>       term                                     model_columns n_weights
+#>        age                                               age         2
+#>    sexmale                                           sexmale         2
+#>        bmi                                               bmi         2
+#>   children                                          children         2
+#>  smokeryes                                         smokeryes         2
+#>     region regionnorthwest, regionsoutheast, regionsouthwest         6
+#>  effective_df wald_chisq      p_value status
+#>      1.997897  25.809166 2.478255e-06     ok
+#>      1.997447   4.602134 9.993031e-02     ok
+#>      1.989125 106.151550 8.683343e-24     ok
+#>      1.999329  14.285650 7.898082e-04     ok
+#>      1.841755 165.817646 6.588393e-37     ok
+#>      5.985367   9.691684 1.373538e-01     ok
 \end{verbatim}
 
-The output contains one row for each input column in the fitted model matrix.
-For each input, \pkg{statnnet} reports a point-estimate PCE, its standard error, a Wald-type statistic, and a corresponding p-value.
-Thus, the summary combines two pieces of information that are commonly sought in regression modelling: an estimate of the size of the input effect and a test of whether that input appears to contribute to the fitted model.
+The first table reports average predictive finite-difference effects over the observed covariate rows, with pointwise standard errors and intervals when covariance estimation is available.
+For factors it reports one contrast for each non-reference level.
+The separate grouped Wald table tests all model-matrix columns belonging to each formula term jointly.
+Thus, the summary provides two pieces of information that are commonly sought in regression modelling: descriptive effect estimates and a test of whether a term appears to contribute to the fitted model.
 
 For example, in the insurance data, variables such as \code{age}, \code{bmi}, \code{children}, and \code{smokeryes} are expected to contribute strongly to the fitted response.
 The summary output allows these effects to be inspected in a form that is closer to a classical regression summary than to the raw weight output usually obtained from neural-network software.
 
 By default, \code{summary()} focuses on covariate-level summaries.
+The more computationally intensive average partial-dependence effects defined in Section \ref{sec:fnn-background} can be requested explicitly:
+
+\begin{verbatim}
+summary(snn, effects = "partial")
+\end{verbatim}
+
 Single-parameter summaries for individual neural-network weights can also be displayed:
 
 \begin{verbatim}
 summary(snn, weights = TRUE)
-\end{verbatim}
-
-\begin{verbatim}
-#> statnnet summary
-#> Formula: charges ~ .
-#> Response: continuous; architecture: 8-2-1
-#> 
-#> Average predictive finite-difference effects
-#>         variable                               contrast         value step
-#>              age average observed-row finite difference -1.724186e-16    1
-#>          sexmale                                  1 - 0  1.000000e+00    1
-#>              bmi average observed-row finite difference -2.097737e-16    1
-#>         children average observed-row finite difference -8.764235e-17    1
-#>        smokeryes                                  1 - 0  1.000000e+00    1
-#>  regionnorthwest                                  1 - 0  1.000000e+00    1
-#>  regionsoutheast                                  1 - 0  1.000000e+00    1
-#>  regionsouthwest                                  1 - 0  1.000000e+00    1
-#>     estimate  std_error    conf_low    conf_high
-#>   0.31363077 0.01112587  0.29182447  0.335437066
-#>  -0.04643133 0.02006795 -0.08576379 -0.007098873
-#>   0.14386456 0.01080637  0.12268446  0.165044654
-#>   0.05046739 0.00994552  0.03097453  0.069960252
-#>   1.97032148 0.02579351  1.91976713  2.020875825
-#>  -0.03036991 0.02836408 -0.08596249  0.025222668
-#>  -0.06996181 0.02847014 -0.12576226 -0.014161372
-#>  -0.09431429 0.02818355 -0.14955303 -0.039075548
-#> 
-#> Grouped input-to-hidden Wald summaries
-#>             term   model_columns n_weights effective_df wald_chisq      p_value
-#>              age             age         2     1.997897  25.809166 2.478255e-06
-#>          sexmale         sexmale         2     1.997447   4.602134 9.993031e-02
-#>              bmi             bmi         2     1.989125 106.151550 8.683343e-24
-#>         children        children         2     1.999329  14.285650 7.898082e-04
-#>        smokeryes       smokeryes         2     1.841755 165.817646 6.588393e-37
-#>  regionnorthwest regionnorthwest         2     1.995549   1.768293 4.120538e-01
-#>  regionsoutheast regionsoutheast         2     1.994980   5.089632 7.813126e-02
-#>  regionsouthwest regionsouthwest         2     1.994838   8.350457 1.528435e-02
-#>  status
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#> 
-#> Individual-weight diagnostics
-#>  parameter     estimate  std_error  wald_chisq       p_value     conf_low
-#>      b->h1  -0.67232770 0.15928110  17.8169567  2.432062e-05  -0.98451292
-#>     i1->h1   0.65198826 0.12924056  25.4496549  4.540789e-07   0.39868142
-#>     i2->h1  -0.10626886 0.04971855   4.5685165  3.256475e-02  -0.20371543
-#>     i3->h1   0.01858057 0.02477934   0.5622620  4.533503e-01  -0.02998604
-#>     i4->h1   0.12073622 0.03277387  13.5712481  2.296766e-04   0.05650062
-#>     i5->h1   1.76862776 0.34486858  26.3005982  2.921981e-07   1.09269777
-#>     i6->h1  -0.08298578 0.06702914   1.5327812  2.156955e-01  -0.21436048
-#>     i7->h1  -0.16229713 0.07234587   5.0326213  2.487422e-02  -0.30409243
-#>     i8->h1  -0.21883993 0.07580104   8.3349466  3.888962e-03  -0.36740723
-#>      b->h2  14.29926794 1.19294997 143.6756422  4.183187e-33  11.96112896
-#>     i1->h2  -0.06199884 0.11056881   0.3144140  5.749841e-01  -0.27870973
-#>     i2->h2  -0.06102462 0.18161040   0.1129091  7.368562e-01  -0.41697447
-#>     i3->h2  -3.49532221 0.33932615 106.1059582  6.989616e-25  -4.16038925
-#>     i4->h2   0.13964724 0.09068561   2.3713078  1.235835e-01  -0.03809330
-#>     i5->h2 -14.54739771 1.20820047 144.9748349  2.175017e-33 -16.91542711
-#>     i6->h2  -0.19015456 0.23774348   0.6397293  4.238088e-01  -0.65612322
-#>     i7->h2  -0.10212450 0.25303509   0.1628915  6.865082e-01  -0.59806415
-#>     i8->h2  -0.13518597 0.25610839   0.2786222  5.976057e-01  -0.63714919
-#>       b->o   0.92410077 0.17612159  27.5304583  1.546399e-07   0.57890878
-#>      h1->o   2.32368194 0.34593799  45.1187296  1.854433e-11   1.64565595
-#>      h2->o  -2.06896257 0.08161404 642.6514214 8.857193e-142  -2.22892316
-#>     conf_high
-#>   -0.36014249
-#>    0.90529511
-#>   -0.00882230
-#>    0.06714719
-#>    0.18497181
-#>    2.44455775
-#>    0.04838891
-#>   -0.02050184
-#>   -0.07027262
-#>   16.63740692
-#>    0.15471205
-#>    0.29492522
-#>   -2.83025518
-#>    0.31738777
-#>  -12.17936830
-#>    0.27581409
-#>    0.39381516
-#>    0.36677724
-#>    1.26929275
-#>    3.00170794
-#>   -1.90900198
 \end{verbatim}
 
 These individual-weight summaries are mainly diagnostic.
@@ -612,24 +565,20 @@ anova(snn)
 
 \begin{verbatim}
 #> Grouped input-to-hidden Wald summaries
-#>             term   model_columns n_weights effective_df wald_chisq      p_value
-#>              age             age         2     1.997897  25.809166 2.478255e-06
-#>          sexmale         sexmale         2     1.997447   4.602134 9.993031e-02
-#>              bmi             bmi         2     1.989125 106.151550 8.683343e-24
-#>         children        children         2     1.999329  14.285650 7.898082e-04
-#>        smokeryes       smokeryes         2     1.841755 165.817646 6.588393e-37
-#>  regionnorthwest regionnorthwest         2     1.995549   1.768293 4.120538e-01
-#>  regionsoutheast regionsoutheast         2     1.994980   5.089632 7.813126e-02
-#>  regionsouthwest regionsouthwest         2     1.994838   8.350457 1.528435e-02
-#>  status
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
-#>      ok
+#>       term                                     model_columns n_weights
+#>        age                                               age         2
+#>    sexmale                                           sexmale         2
+#>        bmi                                               bmi         2
+#>   children                                          children         2
+#>  smokeryes                                         smokeryes         2
+#>     region regionnorthwest, regionsoutheast, regionsouthwest         6
+#>  effective_df wald_chisq      p_value status
+#>      1.997897  25.809166 2.478255e-06     ok
+#>      1.997447   4.602134 9.993031e-02     ok
+#>      1.989125 106.151550 8.683343e-24     ok
+#>      1.999329  14.285650 7.898082e-04     ok
+#>      1.841755 165.817646 6.588393e-37     ok
+#>      5.985367   9.691684 1.373538e-01     ok
 \end{verbatim}
 
 For continuous and binary covariates, this corresponds to testing the group of weights connecting the covariate to the hidden layer.
@@ -644,7 +593,7 @@ For example, rather than separately inspecting the dummy variables corresponding
 The fitted architecture can be visualised using \code{plotnn()}:
 
 \begin{verbatim}
-plotnn(snn)
+plotnn(snn, annotate = "none")
 \end{verbatim}
 
 \begin{figure}
@@ -653,33 +602,25 @@ plotnn(snn)
 
 }
 
-\caption{Fitted neural-network architecture for the insurance data. The diagram shows the input nodes, hidden nodes, output node, and fitted connections, with the default annotation used by `plotnn()`.}\label{fig:example-plotnn}
+\caption{Fitted neural-network architecture for the insurance data. The diagram shows the input nodes, hidden nodes, output node, and fitted connections; annotations are suppressed here to keep the dense diagram legible.}\label{fig:example-plotnn}
 \end{figure}
 
 The plot displays the input nodes, hidden nodes, output node, and fitted connections.
-By default, statistically significant input nodes and weights are highlighted, while non-significant components are shown in a lighter colour.
-This gives a compact visual summary of the fitted network and the associated Wald-type summaries.
+By default, input-to-hidden edges are annotated with their fitted weight estimates.
+Individual-weight Wald p-values can be displayed instead using \texttt{annotate\ =\ "p\_value"}; edges whose p-values are below \code{alpha} are highlighted.
+These edge-level annotations are diagnostic, while \code{anova()} provides the intended term-level summaries.
 
-The significance threshold can be changed using the \code{alpha} argument:
-
-\begin{verbatim}
-plotnn(snn, alpha = 0.01)
-\end{verbatim}
-
-\begin{center}\includegraphics{new-draft_files/figure-latex/example-plotnn-alpha-1} \end{center}
-
-Intercept terms can also be displayed if desired:
+The p-value annotation and significance threshold can be selected using:
 
 \begin{verbatim}
-plotnn(snn, intercept = TRUE)
+plotnn(snn, annotate = "p_value", alpha = 0.01)
 \end{verbatim}
-
-\begin{center}\includegraphics{new-draft_files/figure-latex/example-plotnn-intercept-1} \end{center}
 
 \subsection{Partial covariate-effect plots}\label{partial-covariate-effect-plots}
 
 The \code{plot()} method produces PCE plots.
 For a continuous covariate such as \code{bmi}, the PCE plot shows how the estimated effect of a \(d\)-unit increase in BMI varies across the observed BMI range.
+The default grid is restricted so that both the baseline value and its \(d\)-unit comparison remain within the observed univariate range.
 
 \begin{verbatim}
 plot(snn, variable = "bmi", uncertainty = "none")
@@ -705,15 +646,6 @@ For example, the effect of smoking status can be visualised using
 plot(snn, variable = "smokeryes", uncertainty = "none")
 \end{verbatim}
 
-\begin{figure}
-
-{\centering \includegraphics[alt={A partial covariate-effect plot for smoking status, with the smoking-status dummy variable on the horizontal axis and the estimated covariate effect on the vertical axis.}]{new-draft_files/figure-latex/example-pce-smoker-1} 
-
-}
-
-\caption{Partial covariate-effect plot for smoking status in the insurance data. The plot shows the estimated change in fitted charges associated with the smoking-status dummy variable.}\label{fig:example-pce-smoker}
-\end{figure}
-
 Several covariates can be plotted at once:
 
 \begin{verbatim}
@@ -724,17 +656,8 @@ plot(
 )
 \end{verbatim}
 
-\begin{figure}
-
-{\centering \includegraphics[alt={A set of partial covariate-effect plots for age, body mass index, children, and smoking status.}]{new-draft_files/figure-latex/example-pce-multiple-1} 
-
-}
-
-\caption{Partial covariate-effect plots for selected covariates in the insurance data. The panels show estimated covariate effects for age, body mass index, number of children, and smoking status.}\label{fig:example-pce-multiple}
-\end{figure}
-
 The uncertainty intervals are computed using the approximate sampling distribution of the fitted parameters.
-The default uncertainty method can be changed using the \code{method} argument.
+The uncertainty calculation is selected using the \code{uncertainty} argument.
 For example, the delta-method intervals are obtained using:
 
 \begin{verbatim}
@@ -757,8 +680,6 @@ plot(
 )
 \end{verbatim}
 
-\begin{center}\includegraphics{new-draft_files/figure-latex/example-pce-sim-1} \end{center}
-
 \subsection{Visualising interactions}\label{visualising-interactions}
 
 Because FNNs can represent interactions between covariates, it can also be useful to examine whether a PCE changes across the values of another covariate.
@@ -767,7 +688,7 @@ For example, the effect of \code{bmi} can be plotted separately for different sm
 \begin{verbatim}
 plot(
   snn,
-  variable = "age",
+  variable = "bmi",
   by = "smokeryes",
   uncertainty = "delta"
 )
@@ -801,7 +722,10 @@ head(fitted_values)
 Predictions for new observations can be obtained using the \code{newdata} argument:
 
 \begin{verbatim}
-new_insurance <- insurance[1:5, setdiff(names(insurance), "charges")]
+new_insurance <- insurance_analysis[
+  1:5,
+  setdiff(names(insurance_analysis), "charges")
+]
 
 predict(snn, newdata = new_insurance)
 \end{verbatim}
@@ -834,7 +758,8 @@ The original \code{"nnet"} fit is also retained, allowing prediction to be deleg
 
 \subsection{Requirements and diagnostic checks}\label{requirements-and-diagnostic-checks}
 
-The input to \code{statnnet()} must inherit from class \code{"nnet"}; the formula and training data are required when they cannot be recovered unambiguously from the fitted object.
+The input to \code{statnnet()} must inherit from class \code{"nnet"}, and the original training data must always be supplied.
+The formula may be omitted only when it can be recovered from an \code{"nnet.formula"} object.
 The constructor checks the architecture, response type, convergence code, and agreement between the reconstructed model matrix and the fitted network.
 
 Before computing covariance-based summaries, the package checks the \CRANpkg{nnet} convergence code and the availability and numerical behaviour of the Hessian.
@@ -854,21 +779,21 @@ Together, these functions add statistical summaries to a fitted \code{"nnet"} ob
 \hline
 Function & Purpose\\
 \hline
-`statnnet()` & Validates and augments a supported object of class `nnet`.\\
+`statnnet()` & Validates and augments an `nnet` fit.\\
 \hline
-`print()` & Prints a compact description of the fitted network and its diagnostics.\\
+`print()` & Prints architecture and diagnostics.\\
 \hline
-`summary()` & Produces regression-style summaries, including PCE estimates and Wald-type summaries.\\
+`summary()` & Reports effects and grouped Wald summaries.\\
 \hline
-`anova()` & Produces covariate-level Wald-type summaries, including grouped summaries for categorical covariates.\\
+`anova()` & Reports grouped Wald summaries.\\
 \hline
-`vcov()` & Returns the estimated covariance matrix when its diagnostic checks are satisfied.\\
+`vcov()` & Returns the covariance estimate.\\
 \hline
-`plot()` & Produces partial covariate-effect plots, with optional uncertainty intervals.\\
+`plot()` & Plots PCEs and pointwise intervals.\\
 \hline
-`plotnn()` & Produces a neural-network architecture diagram annotated with Wald-type summaries.\\
+`plotnn()` & Draws an annotated network.\\
 \hline
-`predict()` & Returns fitted values or predictions for new observations.\\
+`predict()` & Delegates prediction to the retained fit.\\
 \hline
 \end{tabular}
 \end{table}
@@ -901,6 +826,8 @@ This gives an output closer in spirit to an analysis-of-variance table for a sta
 PCE plots should be interpreted as summaries of the fitted model, not as causal effects.
 A PCE describes how the fitted response changes when a covariate is varied while the remaining covariates are averaged over their observed values.
 As with partial dependence plots more generally, interpretation can be more difficult when covariates are strongly correlated or when the plot evaluates combinations of covariate values that are rare in the observed data.
+For default continuous PCE curves, \pkg{statnnet} keeps both finite-difference endpoints within the observed univariate covariate range.
+User-supplied evaluation values and average effects are not restricted in this way and can still involve extrapolation, particularly near a boundary or with a large finite-difference step.
 The plots are therefore best viewed as descriptive tools for understanding the fitted prediction function.
 
 The inferential summaries produced by \pkg{statnnet} do not replace model checking or predictive validation.

@@ -24,7 +24,9 @@ pce(
 \item{variable}{Name of an original predictor.}
 
 \item{values}{Values at which to evaluate a continuous predictor. By
-default, an evenly spaced grid over the observed range is used.}
+default, an evenly spaced grid is chosen so that both each baseline value
+and its finite-difference comparison remain within the observed range.
+User-supplied values are used unchanged and may therefore extrapolate.}
 
 \item{d}{Finite-difference step for a continuous predictor. The default is
 one observed standard deviation. Binary predictors are always compared
@@ -33,11 +35,13 @@ from 0 to 1 and factors against their first level.}
 \item{length_out}{Number of grid points for a continuous predictor.}
 
 \item{type}{\code{"curve"} for evaluations over \code{values}, or \code{"average"} for a
-point summary averaged over observed predictor values.}
+point summary averaged over observed predictor values. Average effects
+may compare values beyond the observed range near a boundary.}
 
 \item{uncertainty}{One of \code{"delta"}, \code{"simulation"}, or \code{"none"}.}
 
-\item{level}{Confidence level.}
+\item{level}{Pointwise confidence level. Curve intervals are not
+simultaneous confidence bands.}
 
 \item{nsim}{Number of simulation draws when \code{uncertainty = "simulation"}.}
 

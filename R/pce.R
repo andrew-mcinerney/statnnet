@@ -8,15 +8,19 @@
 #' @param object A `statnnet` object.
 #' @param variable Name of an original predictor.
 #' @param values Values at which to evaluate a continuous predictor. By
-#'   default, an evenly spaced grid over the observed range is used.
+#'   default, an evenly spaced grid is chosen so that both each baseline value
+#'   and its finite-difference comparison remain within the observed range.
+#'   User-supplied values are used unchanged and may therefore extrapolate.
 #' @param d Finite-difference step for a continuous predictor. The default is
 #'   one observed standard deviation. Binary predictors are always compared
 #'   from 0 to 1 and factors against their first level.
 #' @param length_out Number of grid points for a continuous predictor.
 #' @param type `"curve"` for evaluations over `values`, or `"average"` for a
-#'   point summary averaged over observed predictor values.
+#'   point summary averaged over observed predictor values. Average effects
+#'   may compare values beyond the observed range near a boundary.
 #' @param uncertainty One of `"delta"`, `"simulation"`, or `"none"`.
-#' @param level Confidence level.
+#' @param level Pointwise confidence level. Curve intervals are not
+#'   simultaneous confidence bands.
 #' @param nsim Number of simulation draws when `uncertainty = "simulation"`.
 #' @param seed Optional simulation seed.
 #' @param by Optional name of a second predictor at whose values the PCE is
@@ -443,7 +447,22 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     values <- if (average) {
       predictor
     } else {
-      seq(min(predictor), max(predictor), length.out = length_out)
+      predictor_range <- range(predictor)
+      grid_limits <- if (d > 0) {
+        c(predictor_range[1L], predictor_range[2L] - d)
+      } else {
+        c(predictor_range[1L] - d, predictor_range[2L])
+      }
+      if (grid_limits[1L] >= grid_limits[2L]) {
+        stop(
+          paste(
+            "The absolute finite-difference step must be smaller than the",
+            "observed predictor range."
+          ),
+          call. = FALSE
+        )
+      }
+      seq(grid_limits[1L], grid_limits[2L], length.out = length_out)
     }
   }
   if (!is.numeric(values) || any(!is.finite(values))) {

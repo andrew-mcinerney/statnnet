@@ -258,7 +258,9 @@ $$ Hence, $$
   \widehat{\mathrm{Cov}}(\hat{\theta})
   \nabla_{\hat{\theta}}\hat{\beta}(x^{(j)},d).
 $$ This gives an analytic approximation to the variance, and, therefore, the standard error of the PCE at each plotted covariate value.
-Alternatively, uncertainty can be obtained by simulating parameter vectors from the approximate sampling distribution of $\hat{\theta}$ and recomputing the PCE for each simulated set of parameters as in @mandel2013simulation.
+The corresponding normal-approximation intervals are pointwise intervals, not simultaneous confidence bands over the complete curve.
+Alternatively, pointwise percentile intervals can be obtained by simulating parameter vectors from the approximate sampling distribution of $\hat{\theta}$ and recomputing the PCE for each simulated set of parameters as in @mandel2013simulation.
+Both forms of interval are conditional on the selected architecture, value of \code{decay}, local solution, and approximate parameter covariance.
 
 The package also provides a single point-estimate covariate effect by averaging the PCE over the observed values of the covariate: $$
    \hat{\tau}_j
@@ -266,7 +268,25 @@ The package also provides a single point-estimate covariate effect by averaging 
    \frac{1}{n}
    \sum_{i=1}^n
    \hat{\beta}(x_{ij}, d).
-$$ This value is reported in the package summary output and is accompanied by a standard error.
+$$ This average partial-dependence contrast is available from \code{summary(object, effects = "partial")} and is accompanied by a standard error.
+Because its direct calculation averages over all combinations of the observed focal and remaining covariate values, its computational cost can be appreciable.
+
+For continuous covariates, the default summary instead reports the faster average observed-row finite difference
+$$
+  \hat{\tau}^{\mathrm{row}}_j
+  =
+  \frac{1}{n}
+  \sum_{i=1}^n
+  \left\{
+    \mathrm{NN}(x_i + d e_j, \hat{\theta})
+    -
+    \mathrm{NN}(x_i, \hat{\theta})
+  \right\},
+$$
+where $e_j$ selects covariate $j$.
+This estimand changes the focal covariate within each observed row and requires only $O(n)$ prediction evaluations.
+It generally differs from the average partial-dependence contrast when the fitted network contains interactions; the two coincide for additive fitted response functions.
+For binary and categorical covariates, the fixed reference contrasts have the same rowwise and partial-dependence interpretations.
 Together, the Wald-type summaries and PCE plots provide the two pieces of information usually sought from regression-style output: whether a covariate appears to contribute to the fitted model, and how the fitted response changes with that covariate.
 
 # Relationship to existing software {#sec:software}
@@ -314,23 +334,23 @@ nnet_comparison <- data.frame(
     "Numerical diagnostics",
     "Prediction"
   ),
-  `Native nnet object` = c(
-    "Fits the network by BFGS.",
-    "Architecture, options, and connection weights.",
-    "Not available for a general nnet fit.",
+  `nnet` = c(
+    "Fits by BFGS.",
+    "Architecture and connection weights.",
+    "Not generally supplied.",
     "Not provided.",
     "Not provided.",
-    "Convergence code and optional Hessian.",
-    "Provided by predict.nnet()."
+    "Convergence; optional Hessian.",
+    "Provided by `predict.nnet()`."
   ),
-  `statnnet augmentation` = c(
-    "Does not refit the model.",
-    "PCEs, standard errors, and grouped Wald-type summaries.",
-    "Penalty-adjusted sandwich estimate.",
-    "Grouped Wald-type summaries, including factors.",
-    "PCE summaries and plots with uncertainty intervals.",
-    "Convergence and covariance checks.",
-    "Delegates to the retained nnet fit."
+  `statnnet` = c(
+    "Retains the fit; no refitting.",
+    "Effects and grouped Wald summaries.",
+    "Penalised sandwich estimate.",
+    "Grouped Wald summaries.",
+    "PCE summaries and plots.",
+    "Adds covariance checks.",
+    "Delegates to the retained fit."
   ),
   check.names = FALSE
 )
@@ -367,7 +387,7 @@ The package does not support deep architectures, multiple hidden layers, or fitt
 The data contain information on $n = 1338$ insurance beneficiaries.
 The response variable, \code{charges}, is the total medical expenses charged to an insurance plan.
 The explanatory variables are the beneficiary's age, sex, body mass index, number of children covered by the plan, smoking status, and region of residence.
-The version of the data included in \pkg{statnnet} is already centred, scaled, and dummy encoded, so the factor variables appear as binary input columns.
+The version of the data included in \pkg{statnnet} is already centred, scaled, and dummy encoded, so the factor variables initially appear as binary input columns.
 
 ```{r example-data, echo = TRUE}
 library(statnnet)
@@ -379,14 +399,36 @@ names(insurance)
 head(insurance[, c("age", "sexmale", "bmi", "children", "smokeryes", "charges")])
 ```
 
+To demonstrate the package's factor grouping, we reconstruct the original region factor from its mutually exclusive indicator columns and remove those columns before fitting.
+The resulting model matrix is unchanged apart from retaining the mapping of its three region columns to one formula term.
+
+```{r example-region-factor, echo = TRUE}
+insurance_analysis <- insurance
+insurance_analysis$region <- factor(
+  ifelse(
+    insurance$regionnorthwest == 1,
+    "northwest",
+    ifelse(
+      insurance$regionsoutheast == 1,
+      "southeast",
+      ifelse(insurance$regionsouthwest == 1, "southwest", "northeast")
+    )
+  ),
+  levels = c("northeast", "northwest", "southeast", "southwest")
+)
+insurance_analysis[c(
+  "regionnorthwest", "regionsoutheast", "regionsouthwest"
+)] <- NULL
+```
+
 For this example, we model \code{charges} using all available covariates:
 
 ```{r example-formula, echo = TRUE}
 insurance_formula <- charges ~ .
 ```
 
-The variables include both continuous covariates, such as \code{age} and \code{bmi}, and dummy variables representing categorical covariates, such as \code{sexmale}, \code{smokeryes}, and the regional indicators.
-The example is therefore useful for illustrating input-level summaries and the additional care required when a categorical covariate is represented by several dummy variables.
+The variables include continuous covariates, such as \code{age} and \code{bmi}; binary indicator covariates, such as \code{sexmale} and \code{smokeryes}; and the reconstructed \code{region} factor.
+The example therefore illustrates both input-level summaries and joint term-level summaries when a categorical covariate expands to several model-matrix columns.
 
 ## Fitting the neural network
 
@@ -400,7 +442,7 @@ nnet_fits <- replicate(
   10,
   nnet(
     insurance_formula,
-    data = insurance,
+    data = insurance_analysis,
     size = 2,
     linout = TRUE,
     decay = 0.01,
@@ -443,7 +485,7 @@ It can be augmented with the model information required by \pkg{statnnet}:
 snn <- statnnet(
   object = nn,
   formula = insurance_formula,
-  data = insurance,
+  data = insurance_analysis,
   response = "continuous"
 )
 ```
@@ -473,17 +515,24 @@ The \code{summary()} method gives the main regression-style summary produced by 
 summary(snn)
 ```
 
-The output contains one row for each input column in the fitted model matrix.
-For each input, \pkg{statnnet} reports a point-estimate PCE, its standard error, a Wald-type statistic, and a corresponding p-value.
-Thus, the summary combines two pieces of information that are commonly sought in regression modelling: an estimate of the size of the input effect and a test of whether that input appears to contribute to the fitted model.
+The first table reports average predictive finite-difference effects over the observed covariate rows, with pointwise standard errors and intervals when covariance estimation is available.
+For factors it reports one contrast for each non-reference level.
+The separate grouped Wald table tests all model-matrix columns belonging to each formula term jointly.
+Thus, the summary provides two pieces of information that are commonly sought in regression modelling: descriptive effect estimates and a test of whether a term appears to contribute to the fitted model.
 
 For example, in the insurance data, variables such as \code{age}, \code{bmi}, \code{children}, and \code{smokeryes} are expected to contribute strongly to the fitted response.
 The summary output allows these effects to be inspected in a form that is closer to a classical regression summary than to the raw weight output usually obtained from neural-network software.
 
 By default, \code{summary()} focuses on covariate-level summaries.
+The more computationally intensive average partial-dependence effects defined in Section \ref{sec:fnn-background} can be requested explicitly:
+
+```{r example-summary-partial, echo = TRUE, eval = FALSE}
+summary(snn, effects = "partial")
+```
+
 Single-parameter summaries for individual neural-network weights can also be displayed:
 
-```{r example-summary-single, echo = TRUE}
+```{r example-summary-single, echo = TRUE, results = "hide"}
 summary(snn, weights = TRUE)
 ```
 
@@ -509,30 +558,26 @@ For example, rather than separately inspecting the dummy variables corresponding
 
 The fitted architecture can be visualised using \code{plotnn()}:
 
-```{r example-plotnn, echo = TRUE, fig.cap = "Fitted neural-network architecture for the insurance data. The diagram shows the input nodes, hidden nodes, output node, and fitted connections, with the default annotation used by `plotnn()`.", fig.alt = "A neural-network architecture diagram with eight input nodes, two hidden nodes, one output node, and directed connections between layers."}
-plotnn(snn)
+```{r example-plotnn, echo = TRUE, fig.cap = "Fitted neural-network architecture for the insurance data. The diagram shows the input nodes, hidden nodes, output node, and fitted connections; annotations are suppressed here to keep the dense diagram legible.", fig.alt = "A neural-network architecture diagram with eight input nodes, two hidden nodes, one output node, and directed connections between layers."}
+plotnn(snn, annotate = "none")
 ```
 
 The plot displays the input nodes, hidden nodes, output node, and fitted connections.
-By default, statistically significant input nodes and weights are highlighted, while non-significant components are shown in a lighter colour.
-This gives a compact visual summary of the fitted network and the associated Wald-type summaries.
+By default, input-to-hidden edges are annotated with their fitted weight estimates.
+Individual-weight Wald p-values can be displayed instead using `annotate = "p_value"`; edges whose p-values are below \code{alpha} are highlighted.
+These edge-level annotations are diagnostic, while \code{anova()} provides the intended term-level summaries.
 
-The significance threshold can be changed using the \code{alpha} argument:
+The p-value annotation and significance threshold can be selected using:
 
-```{r example-plotnn-alpha, echo = TRUE}
-plotnn(snn, alpha = 0.01)
-```
-
-Intercept terms can also be displayed if desired:
-
-```{r example-plotnn-intercept, echo = TRUE}
-plotnn(snn, intercept = TRUE)
+```{r example-plotnn-alpha, echo = TRUE, fig.show = "hide"}
+plotnn(snn, annotate = "p_value", alpha = 0.01)
 ```
 
 ## Partial covariate-effect plots
 
 The \code{plot()} method produces PCE plots.
 For a continuous covariate such as \code{bmi}, the PCE plot shows how the estimated effect of a $d$-unit increase in BMI varies across the observed BMI range.
+The default grid is restricted so that both the baseline value and its $d$-unit comparison remain within the observed univariate range.
 
 ```{r example-pce-bmi, echo = TRUE, fig.cap = "Partial covariate-effect plot for body mass index in the insurance data. The plot shows the estimated change in fitted charges associated with a change in standardised body mass index over the observed covariate range.", fig.alt = "A partial covariate-effect plot for body mass index, with body mass index on the horizontal axis and the estimated covariate effect on the vertical axis."}
 plot(snn, variable = "bmi", uncertainty = "none")
@@ -545,13 +590,13 @@ This is one of the main advantages of the PCE plot: it gives an effect-size inte
 For binary covariates, the PCE corresponds to the average change in fitted response when the covariate changes from 0 to 1.
 For example, the effect of smoking status can be visualised using
 
-```{r example-pce-smoker, echo = TRUE, fig.cap = "Partial covariate-effect plot for smoking status in the insurance data. The plot shows the estimated change in fitted charges associated with the smoking-status dummy variable.", fig.alt = "A partial covariate-effect plot for smoking status, with the smoking-status dummy variable on the horizontal axis and the estimated covariate effect on the vertical axis."}
+```{r example-pce-smoker, echo = TRUE, fig.show = "hide"}
 plot(snn, variable = "smokeryes", uncertainty = "none")
 ```
 
 Several covariates can be plotted at once:
 
-```{r example-pce-multiple, echo = TRUE, fig.cap = "Partial covariate-effect plots for selected covariates in the insurance data. The panels show estimated covariate effects for age, body mass index, number of children, and smoking status.", fig.alt = "A set of partial covariate-effect plots for age, body mass index, children, and smoking status."}
+```{r example-pce-multiple, echo = TRUE, fig.show = "hide"}
 plot(
   snn,
   variable = c("age", "bmi", "children", "smokeryes"),
@@ -560,7 +605,7 @@ plot(
 ```
 
 The uncertainty intervals are computed using the approximate sampling distribution of the fitted parameters.
-The default uncertainty method can be changed using the \code{method} argument.
+The uncertainty calculation is selected using the \code{uncertainty} argument.
 For example, the delta-method intervals are obtained using:
 
 ```{r example-pce-delta, echo = TRUE}
@@ -573,7 +618,7 @@ plot(
 
 Alternatively, simulation from the approximate sampling distribution of the fitted parameters can be used:
 
-```{r example-pce-sim, echo = TRUE}
+```{r example-pce-sim, echo = TRUE, fig.show = "hide"}
 plot(
   snn,
   variable = "age",
@@ -589,7 +634,7 @@ For example, the effect of \code{bmi} can be plotted separately for different sm
 ```{r example-pce-interaction, echo = TRUE}
 plot(
   snn,
-  variable = "age",
+  variable = "bmi",
   by = "smokeryes",
   uncertainty = "delta"
 )
@@ -611,7 +656,10 @@ head(fitted_values)
 Predictions for new observations can be obtained using the \code{newdata} argument:
 
 ```{r example-predict-newdata, echo = TRUE}
-new_insurance <- insurance[1:5, setdiff(names(insurance), "charges")]
+new_insurance <- insurance_analysis[
+  1:5,
+  setdiff(names(insurance_analysis), "charges")
+]
 
 predict(snn, newdata = new_insurance)
 ```
@@ -635,7 +683,8 @@ The original \code{"nnet"} fit is also retained, allowing prediction to be deleg
 
 ## Requirements and diagnostic checks
 
-The input to \code{statnnet()} must inherit from class \code{"nnet"}; the formula and training data are required when they cannot be recovered unambiguously from the fitted object.
+The input to \code{statnnet()} must inherit from class \code{"nnet"}, and the original training data must always be supplied.
+The formula may be omitted only when it can be recovered from an \code{"nnet.formula"} object.
 The constructor checks the architecture, response type, convergence code, and agreement between the reconstructed model matrix and the fitted network.
 
 Before computing covariance-based summaries, the package checks the \CRANpkg{nnet} convergence code and the availability and numerical behaviour of the Hessian.
@@ -661,14 +710,14 @@ knitr::kable(
       "`predict()`"
     ),
     Purpose = c(
-      "Validates and augments a supported object of class `nnet`.",
-      "Prints a compact description of the fitted network and its diagnostics.",
-      "Produces regression-style summaries, including PCE estimates and Wald-type summaries.",
-      "Produces covariate-level Wald-type summaries, including grouped summaries for categorical covariates.",
-      "Returns the estimated covariance matrix when its diagnostic checks are satisfied.",
-      "Produces partial covariate-effect plots, with optional uncertainty intervals.",
-      "Produces a neural-network architecture diagram annotated with Wald-type summaries.",
-      "Returns fitted values or predictions for new observations."
+      "Validates and augments an `nnet` fit.",
+      "Prints architecture and diagnostics.",
+      "Reports effects and grouped Wald summaries.",
+      "Reports grouped Wald summaries.",
+      "Returns the covariance estimate.",
+      "Plots PCEs and pointwise intervals.",
+      "Draws an annotated network.",
+      "Delegates prediction to the retained fit."
     )
   ),
   caption = "Main user-facing functions and methods in statnnet.",
@@ -704,6 +753,8 @@ This gives an output closer in spirit to an analysis-of-variance table for a sta
 PCE plots should be interpreted as summaries of the fitted model, not as causal effects.
 A PCE describes how the fitted response changes when a covariate is varied while the remaining covariates are averaged over their observed values.
 As with partial dependence plots more generally, interpretation can be more difficult when covariates are strongly correlated or when the plot evaluates combinations of covariate values that are rare in the observed data.
+For default continuous PCE curves, \pkg{statnnet} keeps both finite-difference endpoints within the observed univariate covariate range.
+User-supplied evaluation values and average effects are not restricted in this way and can still involve extrapolation, particularly near a boundary or with a large finite-difference step.
 The plots are therefore best viewed as descriptive tools for understanding the fitted prediction function.
 
 The inferential summaries produced by \pkg{statnnet} do not replace model checking or predictive validation.

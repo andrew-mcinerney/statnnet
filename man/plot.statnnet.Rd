@@ -21,7 +21,8 @@ predictors.}
 
 \item{uncertainty}{One of \code{"delta"}, \code{"simulation"}, or \code{"none"}.}
 
-\item{level}{Confidence level.}
+\item{level}{Pointwise confidence level. Curve intervals are not
+simultaneous confidence bands.}
 
 \item{by}{Optional conditioning predictor. Two PCE curves are drawn at the
 observed mean minus and plus one standard deviation for a continuous

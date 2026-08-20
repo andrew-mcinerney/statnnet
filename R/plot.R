@@ -4,7 +4,8 @@
 #' @param variable One or more predictor names. The default plots all supported
 #'   predictors.
 #' @param uncertainty One of `"delta"`, `"simulation"`, or `"none"`.
-#' @param level Confidence level.
+#' @param level Pointwise confidence level. Curve intervals are not
+#'   simultaneous confidence bands.
 #' @param by Optional conditioning predictor. Two PCE curves are drawn at the
 #'   observed mean minus and plus one standard deviation for a continuous
 #'   predictor, or at both fitted levels for a binary predictor.

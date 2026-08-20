@@ -38,7 +38,8 @@ documented.}
 
 \item{weights}{Include individual-weight Wald diagnostics in the summary.}
 
-\item{level}{Confidence level for individual-weight intervals.}
+\item{level}{Confidence level for individual-weight intervals and pointwise
+effect intervals. Curve intervals are not simultaneous confidence bands.}
 
 \item{effects}{Effect summaries to include. \code{"rowwise"} (the default)
 computes fast average predictive finite differences over the observed

@@ -88,6 +88,35 @@ test_that("simulation intervals are reproducible with a fixed seed", {
   expect_equal(first, second)
 })
 
+test_that("default continuous PCE grids remain within observed support", {
+  data <- make_gaussian_data()
+  fit <- fit_gaussian(data)
+  model <- suppressWarnings(statnnet(fit, data = data))
+  predictor_range <- range(data$x1)
+
+  positive <- pce(
+    model, "x1", d = 0.5, length_out = 7L, uncertainty = "none"
+  )
+  expect_equal(min(positive$value), predictor_range[1L])
+  expect_equal(max(positive$value + positive$step), predictor_range[2L])
+
+  negative <- pce(
+    model, "x1", d = -0.5, length_out = 7L, uncertainty = "none"
+  )
+  expect_equal(min(negative$value + negative$step), predictor_range[1L])
+  expect_equal(max(negative$value), predictor_range[2L])
+
+  expect_error(
+    pce(
+      model,
+      "x1",
+      d = diff(predictor_range) + 1,
+      uncertainty = "none"
+    ),
+    "must be smaller than the observed predictor range"
+  )
+})
+
 test_that("factor PCEs preserve fitted levels and contrasts", {
   data <- make_gaussian_data()
   contrasts(data$f) <- contr.sum(3)

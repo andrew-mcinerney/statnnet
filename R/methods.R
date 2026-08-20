@@ -5,7 +5,8 @@
 #' @param ... Additional arguments passed to the underlying method where
 #'   documented.
 #' @param weights Include individual-weight Wald diagnostics in the summary.
-#' @param level Confidence level for individual-weight intervals.
+#' @param level Confidence level for individual-weight intervals and pointwise
+#'   effect intervals. Curve intervals are not simultaneous confidence bands.
 #' @param effects Effect summaries to include. `"rowwise"` (the default)
 #'   computes fast average predictive finite differences over the observed
 #'   covariate rows. `"partial"` computes the more expensive average
