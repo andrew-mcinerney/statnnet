@@ -14,7 +14,8 @@ pce(
   uncertainty = c("delta", "simulation", "none"),
   level = 0.95,
   nsim = 1000L,
-  seed = NULL
+  seed = NULL,
+  by = NULL
 )
 }
 \arguments{
@@ -41,6 +42,10 @@ point summary averaged over observed predictor values.}
 \item{nsim}{Number of simulation draws when \code{uncertainty = "simulation"}.}
 
 \item{seed}{Optional simulation seed.}
+
+\item{by}{Optional name of a second predictor at whose values the PCE is
+evaluated. Continuous predictors use their observed mean minus and plus
+one standard deviation. Binary predictors use both fitted levels.}
 }
 \value{
 A data frame of class \code{"statnnet_pce"}.

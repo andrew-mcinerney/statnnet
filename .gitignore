@@ -5,3 +5,15 @@
 inst/doc
 /doc/
 /Meta/
+
+# R Journal paper: reproducible rendering intermediates
+/paper/*_cache/
+/paper/*_files/
+/paper/figure/
+/paper/*.aux
+/paper/*.bbl
+/paper/*.blg
+/paper/*.brf
+/paper/*.log
+/paper/*.out
+/paper/Rplots.pdf

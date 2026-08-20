@@ -55,8 +55,10 @@ anova(model)
 #>   chas          chas         1    0.9995955   12.92108 3.246427e-04     ok
 ```
 
-`summary(model)` returns structured average partial covariate effects
-and grouped Wald-type summaries. `pce()` and `plot()` provide
+`summary(model)` returns fast average predictive finite-difference effects
+over the observed covariate rows and grouped Wald-type summaries. Use
+`summary(model, effects = "partial")` for average partial-dependence effects,
+or `summary(model, effects = "none")` to omit effect summaries. `pce()` and `plot()` provide
 finite-difference partial covariate effects with delta-method or
 simulation uncertainty.
 

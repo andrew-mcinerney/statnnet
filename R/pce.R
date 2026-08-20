@@ -19,13 +19,16 @@
 #' @param level Confidence level.
 #' @param nsim Number of simulation draws when `uncertainty = "simulation"`.
 #' @param seed Optional simulation seed.
+#' @param by Optional name of a second predictor at whose values the PCE is
+#'   evaluated. Continuous predictors use their observed mean minus and plus
+#'   one standard deviation. Binary predictors use both fitted levels.
 #'
 #' @return A data frame of class `"statnnet_pce"`.
 #' @export
 pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
                 type = c("curve", "average"),
                 uncertainty = c("delta", "simulation", "none"),
-                level = 0.95, nsim = 1000L, seed = NULL) {
+                level = 0.95, nsim = 1000L, seed = NULL, by = NULL) {
   if (!inherits(object, "statnnet")) {
     stop("`object` must inherit from \"statnnet\".", call. = FALSE)
   }
@@ -51,6 +54,36 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     length_out = length_out,
     average = identical(type, "average")
   )
+  by_spec <- .pce_by_spec(object, variable = variable, by = by)
+  if (!is.null(by_spec)) {
+    if (identical(type, "average")) {
+      stop("`by` is currently supported only for `type = \"curve\"`.", call. = FALSE)
+    }
+    n_scenarios <- length(scenarios$items)
+    scenarios$items <- unlist(lapply(seq_along(by_spec$values), function(index) {
+      lapply(scenarios$items, function(item) {
+        item$low <- .set_pce_condition(
+          item$low, variable = by, value = by_spec$values[[index]], object = object
+        )
+        item$high <- .set_pce_condition(
+          item$high, variable = by, value = by_spec$values[[index]], object = object
+        )
+        item
+      })
+    }), recursive = FALSE)
+    scenarios$metadata <- scenarios$metadata[
+      rep(seq_len(nrow(scenarios$metadata)), times = length(by_spec$values)),
+      ,
+      drop = FALSE
+    ]
+    scenarios$metadata$by_variable <- by
+    scenarios$metadata$by_value <- rep(
+      unlist(by_spec$values, use.names = FALSE),
+      each = n_scenarios
+    )
+    scenarios$metadata$by_label <- rep(by_spec$labels, each = n_scenarios)
+    rownames(scenarios$metadata) <- NULL
+  }
   evaluated <- lapply(scenarios$items, function(item) {
     x_low <- .build_model_matrix(object, item$low)
     x_high <- .build_model_matrix(object, item$high)
@@ -87,6 +120,11 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     conf_high = NA_real_,
     stringsAsFactors = FALSE
   )
+  if (!is.null(by_spec)) {
+    result$by_variable <- metadata$by_variable
+    result$by_value <- metadata$by_value
+    result$by_label <- metadata$by_label
+  }
 
   covariance_available <- isTRUE(object$diagnostics$covariance_available)
   if (uncertainty != "none" && !covariance_available) {
@@ -151,6 +189,176 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
   class(result) <- c("statnnet_pce", "data.frame")
   attr(result, "type") <- type
   attr(result, "uncertainty") <- if (covariance_available) uncertainty else "none"
+  attr(result, "level") <- level
+  attr(result, "by") <- by
+  result
+}
+
+.pce_by_spec <- function(object, variable, by) {
+  if (is.null(by)) {
+    return(NULL)
+  }
+  if (!is.character(by) || length(by) != 1L || is.na(by) ||
+      !by %in% object$variables) {
+    stop("`by` must name one predictor used in the fitted formula.", call. = FALSE)
+  }
+  if (identical(by, variable)) {
+    stop("`by` must be different from `variable`.", call. = FALSE)
+  }
+
+  predictor <- object$training_data[[by]]
+  fitted_levels <- object$xlevels[[by]]
+  is_categorical <- is.factor(predictor) || !is.null(fitted_levels) ||
+    is.character(predictor)
+  if (is_categorical) {
+    levels_used <- if (!is.null(fitted_levels)) {
+      fitted_levels
+    } else {
+      levels(factor(predictor))
+    }
+    if (length(levels_used) != 2L) {
+      stop("A categorical `by` predictor must have exactly two fitted levels.", call. = FALSE)
+    }
+    return(list(
+      values = as.list(levels_used),
+      labels = paste0(by, " = ", levels_used)
+    ))
+  }
+
+  if (is.logical(predictor)) {
+    return(list(
+      values = list(FALSE, TRUE),
+      labels = paste0(by, " = ", c(0, 1))
+    ))
+  }
+  if (!is.numeric(predictor) || any(!is.finite(predictor))) {
+    stop("`by` must be a continuous or binary predictor.", call. = FALSE)
+  }
+  unique_values <- sort(unique(predictor))
+  if (length(unique_values) == 2L && all(unique_values == c(0, 1))) {
+    return(list(
+      values = as.list(c(0, 1)),
+      labels = paste0(by, " = ", c(0, 1))
+    ))
+  }
+
+  predictor_sd <- stats::sd(predictor)
+  if (!is.finite(predictor_sd) || predictor_sd == 0) {
+    stop("A continuous `by` predictor must have a non-zero standard deviation.", call. = FALSE)
+  }
+  conditioning_values <- mean(predictor) + c(-1, 1) * predictor_sd
+  list(
+    values = as.list(conditioning_values),
+    labels = sprintf(
+      "%s = %.4g (%s1 SD)",
+      by,
+      conditioning_values,
+      c("-", "+")
+    )
+  )
+}
+
+.set_pce_condition <- function(data, variable, value, object) {
+  predictor <- object$training_data[[variable]]
+  fitted_levels <- object$xlevels[[variable]]
+  if (is.factor(predictor) || !is.null(fitted_levels) || is.character(predictor)) {
+    levels_used <- if (!is.null(fitted_levels)) fitted_levels else levels(factor(predictor))
+    data[[variable]] <- factor(
+      rep(as.character(value), nrow(data)),
+      levels = levels_used,
+      ordered = is.ordered(predictor)
+    )
+  } else if (is.logical(predictor)) {
+    data[[variable]] <- rep(as.logical(value), nrow(data))
+  } else {
+    data[[variable]] <- rep(as.numeric(value), nrow(data))
+  }
+  data
+}
+
+.average_predictive_effect <- function(object, variable, d = NULL,
+                                       uncertainty = c("delta", "none"),
+                                       level = 0.95) {
+  uncertainty <- match.arg(uncertainty)
+  data <- object$training_data
+  predictor <- data[[variable]]
+  factor_levels <- object$xlevels[[variable]]
+
+  is_categorical <- is.factor(predictor) || !is.null(factor_levels) ||
+    is.character(predictor)
+  unique_values <- if (is.numeric(predictor)) sort(unique(predictor)) else NULL
+  is_binary <- (is.logical(predictor)) ||
+    (is.numeric(predictor) && all(is.finite(predictor)) &&
+       length(unique_values) == 2L && all(unique_values == c(0, 1)))
+
+  # Fixed categorical and binary contrasts already require only O(n) work and
+  # have the same rowwise and partial-dependence interpretations.
+  if (is_categorical || is_binary) {
+    return(pce(
+      object,
+      variable = variable,
+      type = "average",
+      uncertainty = uncertainty,
+      level = level
+    ))
+  }
+  if (!is.numeric(predictor) || any(!is.finite(predictor))) {
+    stop("Average effects require numeric, logical, or factor predictors.", call. = FALSE)
+  }
+  if (is.null(d)) {
+    d <- stats::sd(predictor)
+  }
+  if (!is.numeric(d) || length(d) != 1L || !is.finite(d) || d == 0) {
+    stop("`d` must be one non-zero finite number for a continuous predictor.", call. = FALSE)
+  }
+
+  low <- data
+  high <- data
+  high[[variable]] <- predictor + d
+  x_low <- .build_model_matrix(object, low)
+  x_high <- .build_model_matrix(object, high)
+  estimate <- mean(
+    .nn_predict_matrix(
+      x_high, object$weights, object$architecture$hidden, object$response
+    ) - .nn_predict_matrix(
+      x_low, object$weights, object$architecture$hidden, object$response
+    )
+  )
+  gradient <- colMeans(
+    .nn_gradient_matrix(
+      x_high, object$weights, object$architecture$hidden, object$response
+    ) - .nn_gradient_matrix(
+      x_low, object$weights, object$architecture$hidden, object$response
+    )
+  )
+
+  result <- data.frame(
+    variable = variable,
+    contrast = "average observed-row finite difference",
+    value = mean(predictor),
+    step = d,
+    estimate = estimate,
+    std_error = NA_real_,
+    conf_low = NA_real_,
+    conf_high = NA_real_,
+    stringsAsFactors = FALSE
+  )
+  if (uncertainty == "delta") {
+    variance <- drop(gradient %*% object$covariance %*% gradient)
+    variance_scale <- max(1, abs(variance))
+    if (variance < -object$covariance_tol * variance_scale) {
+      stop("The delta-method calculation produced a negative variance.", call. = FALSE)
+    }
+    variance <- max(0, variance)
+    result$std_error <- sqrt(variance)
+    critical <- stats::qnorm(1 - (1 - level) / 2)
+    result$conf_low <- result$estimate - critical * result$std_error
+    result$conf_high <- result$estimate + critical * result$std_error
+  }
+
+  class(result) <- c("statnnet_pce", "data.frame")
+  attr(result, "type") <- "average_rowwise"
+  attr(result, "uncertainty") <- uncertainty
   attr(result, "level") <- level
   result
 }

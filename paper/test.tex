@@ -1,0 +1,939 @@
+% !TeX root = RJwrapper.tex
+\title{interpretnn: An R Package for Regression-Style Interpretation of Shallow Neural Networks}
+
+
+\author{by Andrew McInerney and Kevin Burke}
+
+\maketitle
+
+\abstract{%
+Feedforward neural networks are widely available in R through packages such as \CRANpkg{nnet}, \CRANpkg{neuralnet}, \CRANpkg{keras}, and \CRANpkg{torch}. However, the output from these packages is typically prediction-oriented and does not resemble the regression-style summaries familiar to many statisticians. The \pkg{interpretnn} package provides a post-processing framework for fitted feedforward neural-network objects in R. It converts supported neural-network fits into a common \code{"interpretnn"} object and provides S3 methods for prediction, summaries, Wald-type tests, partial covariate-effect plots with uncertainty estimates, and neural-network architecture diagrams annotated with inferential information. The package is designed to make shallow feedforward neural networks more accessible as statistical modelling tools, while retaining compatibility with existing neural-network fitting software. This paper introduces the statistical quantities computed by \pkg{interpretnn}, describes the package interface and implementation, and demonstrates a typical workflow using an applied regression example.
+}
+
+\section{Introduction}\label{introduction}
+
+Feedforward neural networks (FNNs) are flexible non-linear models that are widely used for prediction and function approximation.
+In R, several packages are available for fitting FNNs, including \CRANpkg{nnet} \citep{nnet}, \CRANpkg{neuralnet} \citep{neuralnet}, \CRANpkg{keras} \citep{keras}, and \CRANpkg{torch} \citep{torch}.
+These packages provide flexible tools for model fitting and prediction, but their outputs are typically designed from a machine-learning perspective.
+For example, fitted neural-network objects usually provide fitted values, predictions, training losses, and access to model weights, but they do not generally provide regression-style summaries such as standard errors, Wald-type tests, analysis-of-variance-style tables, or covariate-effect summaries.
+
+This creates a gap for statisticians who wish to use shallow FNNs as statistical modelling tools rather than purely predictive algorithms.
+In classical regression modelling, users often rely on familiar generic functions such as \texttt{summary()}, \texttt{aov()}, \texttt{predict()}, and \texttt{plot()} to inspect a fitted model, assess the contribution of covariates, and communicate estimated effects.
+Comparable outputs are not routinely available for FNNs, even though shallow neural networks can be written as non-linear regression models with likelihood-based objectives.
+Consequently, users who want to interpret a fitted FNN must often extract weights manually, write custom code for model summaries, or use model-agnostic interpretability tools that do not exploit the specific neural-network parameterisation.
+
+The statistical methodology underlying the approach implemented in \pkg{interpretnn} is developed in \citet{mcinerney2023feedforward}.
+That work treats suitably parsimonious shallow FNNs as statistical models, investigates the performance of Wald-type tests for individual weights and covariate-level groups of weights, and introduces partial covariate-effect plots as neural-network analogues of regression coefficients.
+The present article focuses on the corresponding R implementation.
+In particular, we describe how these statistically motivated summaries can be made available through familiar R syntax and standard S3 methods.
+
+The \pkg{interpretnn} package addresses the gap between neural-network fitting software and regression-style statistical output by providing a statistical post-processing layer for fitted FNNs in R.
+The package does not introduce a new neural-network optimiser.
+Instead, it works with neural networks fitted using existing R packages and converts them into a common \code{"interpretnn"} object.
+This object can then be used with familiar S3 methods.
+The aim is to make fitted FNNs behave more like standard statistical model objects in R, while preserving compatibility with existing neural-network fitting software.
+
+The main functionality of \pkg{interpretnn} includes regression-style summaries for fitted FNNs; Wald-type tests for individual weights, input nodes, and categorical covariates; partial covariate-effect plots with uncertainty estimates; prediction methods for new observations; and neural-network architecture diagrams annotated with the results of the statistical summaries.
+The package also includes a convenience function, \code{nn\_fit()}, for fitting simple FNNs using a familiar formula interface before applying the interpretation tools.
+
+The inferential quantities produced by \pkg{interpretnn} should be interpreted as approximate, model-based summaries of a fitted neural network.
+As with other non-linear models, the validity of Wald-type summaries depends on regularity conditions and on the stability of the fitted model.
+For neural networks in particular, issues such as hidden-node symmetries, redundant hidden nodes, local optima, and near-singular Hessian matrices can affect parameter-based inference.
+Accordingly, \pkg{interpretnn} is intended for relatively shallow, parsimonious FNNs, and the resulting summaries should be used as statistically motivated diagnostic and interpretive tools rather than as definitive inferential guarantees for arbitrary neural-network architectures.
+
+The remainder of the paper is organised as follows.
+Section \ref{sec:fnn-background} briefly introduces the FNN parameterisation and the statistical quantities used by \pkg{interpretnn}.
+Section \ref{sec:software} positions \pkg{interpretnn} relative to existing neural-network fitting and model-interpretability packages.
+Section \ref{sec:package-workflow} describes the main package workflow and the structure of \code{"interpretnn"} objects.
+Section \ref{sec:example} demonstrates the package using an applied regression example.
+Section \ref{sec:methods} describes the supported model objects and S3 methods.
+Section \ref{sec:limitations} discusses practical limitations and appropriate interpretation of the resulting summaries.
+Section \ref{sec:conclusion} concludes.
+
+\section{Statistical background}\label{sec:fnn-background}
+
+This section briefly summarises the statistical quantities computed by \pkg{interpretnn}.
+A fuller development of the methodology, including the derivation of the Wald-type summaries, simulation evidence, and practical recommendations, is given in \citet{mcinerney2023feedforward}.
+Here, the aim is to introduce only the notation and definitions needed to understand the package output.
+
+The \pkg{interpretnn} package is designed for shallow feedforward neural networks that can be viewed as non-linear regression models.
+Let \(y_i\) denote the response for observation \(i = 1,\dots,n\), and let \(x_i = (x_{i0}, x_{i1}, \dots, x_{ip})^T\) denote the corresponding vector of covariates, where \(x_{i0} \equiv 1\) is an intercept term.
+For a single-hidden-layer FNN with \(q\) hidden nodes, the conditional mean can be written as
+\[
+    \mathbb{E}(y_i \mid x_i) = \mathrm{NN}(x_i, \theta),
+\]
+where
+\[
+  \mathrm{NN}(x_i, \theta) =
+  \phi_o \left[
+    \gamma_0 +
+    \sum_{k=1}^q \gamma_k
+    \phi_h \left(
+      \sum_{j=0}^p \omega_{jk} x_{ij}
+    \right)
+  \right].
+\]
+Here, \(\omega_{jk}\) is the weight connecting input \(j\) to hidden node \(k\), \(\gamma_k\) is the weight connecting hidden node \(k\) to the output node, \(\gamma_0\) is the output intercept, and \(\theta\) denotes the full vector of model parameters.
+The functions \(\phi_h(\cdot)\) and \(\phi_o(\cdot)\) are the hidden-layer and output-layer activation functions, respectively.
+For continuous responses, \(\phi_o(\cdot)\) is typically the identity function; for binary responses, it is typically the logistic function.
+
+The package works with fitted FNNs and computes model-based summaries from the fitted parameter vector, the model matrix, the response, and the assumed response distribution.
+For continuous responses, \pkg{interpretnn} uses a Gaussian likelihood; for binary responses, it uses a Bernoulli likelihood.
+When a ridge penalty is used during fitting, the penalised log-likelihood can be written as
+\[
+  \ell_\lambda(\theta)
+  =
+  \sum_{i=1}^n \log f(y_i \mid x_i, \theta)
+  -
+  \lambda \lVert \tilde{\theta} \rVert_2^2,
+\]
+where \(f(y_i \mid x_i, \theta)\) is the assumed density or probability mass function, \(\lambda\) is the ridge penalty, and \(\tilde{\theta}\) denotes the vector of non-intercept neural-network weights.
+This corresponds to the weight-decay penalty commonly used when fitting neural networks.
+The fitted parameter vector and an estimated covariance matrix are then used to construct the regression-style summaries, Wald-type tests, and partial covariate-effect plots described below.
+
+\subsection{Wald-type summaries}\label{wald-type-summaries}
+
+One aim of \pkg{interpretnn} is to provide regression-style summaries for fitted FNNs.
+Given an estimate \(\hat{\theta}\) and an estimated covariance matrix \(\widehat{\mathrm{Cov}}(\hat{\theta})\), the package computes Wald-type summaries for both individual weights and groups of weights.
+
+For an individual parameter \(\theta_j\), the null hypothesis
+\[
+    H_0: \theta_j = 0
+\]
+is summarised using the statistic
+\[
+    W_j = \frac{\hat{\theta}_j^2}{\widehat{\mathrm{Cov}}(\hat{\theta})_{jj}},
+\]
+which is compared to a \(\chi^2_1\) reference distribution.
+This produces a parameter-level summary similar in form to the output from classical regression models.
+However, individual neural-network weights are often difficult to interpret in isolation, because the effect of an input variable is distributed across multiple connections.
+
+For this reason, \pkg{interpretnn} also provides covariate-level Wald-type summaries.
+For a single-hidden-layer FNN, the contribution of covariate \(x_j\) to the hidden layer is represented by the vector
+\[
+    \omega_j = (\omega_{j1}, \dots, \omega_{jq})^T,
+\]
+which contains all weights connecting covariate \(j\) to the hidden nodes.
+The package therefore computes a multiple-parameter Wald-type statistic for
+\[
+    H_0: \omega_j = 0_q.
+\]
+If \(S_j\) is the matrix selecting the elements of \(\theta\) corresponding to \(\omega_j\), then the relevant covariance matrix is
+\[
+    \widehat{\Sigma}_{\omega_j}
+    =
+    S_j \widehat{\mathrm{Cov}}(\hat{\theta}) S_j^T.
+\]
+The corresponding statistic is
+\[
+    W_j =
+    \hat{\omega}_j^T
+    \widehat{\Sigma}_{\omega_j}^{-1}
+    \hat{\omega}_j.
+\]
+This provides an input-level summary that is closer in spirit to testing whether a covariate contributes to the fitted model.
+
+For categorical covariates represented by several dummy variables, \pkg{interpretnn} extends this idea by testing all associated input nodes jointly.
+For example, if a categorical covariate with \(l+1\) levels is represented using \(l\) dummy variables, and the network has \(q\) hidden nodes, the corresponding grouped test involves \(lq\) input-to-hidden weights.
+This gives an analysis-of-variance-style summary for categorical predictors, allowing the user to assess the contribution of the original covariate rather than each dummy variable separately.
+
+The Wald-type quantities reported by \pkg{interpretnn} are approximate, model-based summaries of a fitted FNN.
+Their interpretation depends on the stability of the fitted model and on the regularity of the local parameterisation.
+In particular, neural networks can exhibit hidden-node symmetries, redundant nodes, local optima, and near-singular Hessian matrices.
+These issues are discussed in detail in \citet{mcinerney2023feedforward}.
+In the present article, we focus on how these summaries are computed and exposed through the package interface.
+
+\subsection{Partial covariate effects}\label{partial-covariate-effects}
+
+In addition to assessing whether a covariate contributes to the fitted model, it is useful to describe the nature of that contribution.
+For this purpose, \pkg{interpretnn} provides partial covariate-effect plots.
+
+Partial dependence plots describe how the average fitted response changes as one covariate is varied while the remaining covariates are held at their observed values.
+For covariate \(j\), the partial dependence function is estimated as
+\[
+  \overline{\mathrm{NN}}(x^{(j)})
+  =
+  \frac{1}{n}
+  \sum_{i=1}^n
+  \mathrm{NN}(x_i^{(j)}, \hat{\theta}),
+\]
+where \(x_i^{(j)}\) denotes the covariate vector for observation \(i\) with the \(j\)th covariate set to the value \(x^{(j)}\).
+
+The partial covariate effect (PCE) is a finite-difference version of this quantity.
+For a \(d\)-unit increase in covariate \(j\), the PCE is defined as
+\[
+  \hat{\beta}(x^{(j)}, d)
+  =
+  \overline{\mathrm{NN}}(x^{(j)} + d)
+  -
+  \overline{\mathrm{NN}}(x^{(j)}).
+\]
+This quantity is designed to provide an interpretation closer to a regression coefficient: it estimates the average change in the fitted response associated with a \(d\)-unit increase in a covariate.
+The value of \(d\) can be chosen by the user; common choices are \(d = 1\) or \(d\) equal to one empirical standard deviation of the covariate.
+
+For binary covariates, the PCE corresponds to the average change in the fitted response when the covariate changes from 0 to 1.
+For continuous covariates, plotting \(\hat{\beta}(x^{(j)}, d)\) over a sequence of values shows how the covariate effect varies across the covariate range.
+When the PCE is approximately constant, the fitted relationship is approximately linear in that covariate; when it varies substantially, the fitted model suggests a non-linear effect.
+
+Uncertainty intervals for the PCE can be computed using the approximate sampling distribution of \(\hat{\theta}\).
+For the delta method, the gradient of the PCE with respect to \(\hat{\theta}\) is used:
+\[
+ \nabla_{\hat{\theta}}\hat{\beta}(x^{(j)},d)
+ =
+ \frac{1}{n}
+ \sum_{i=1}^n
+ \left[
+   \nabla_{\hat{\theta}}\mathrm{NN}(x_i^{(j)} + d, \hat{\theta})
+   -
+   \nabla_{\hat{\theta}}\mathrm{NN}(x_i^{(j)}, \hat{\theta})
+ \right].
+\]
+The package also provides a single point-estimate covariate effect by averaging the PCE over the observed values of the covariate:
+\[
+   \hat{\tau}_j
+   =
+   \frac{1}{n}
+   \sum_{i=1}^n
+   \hat{\beta}(x_{ij}, d).
+\]
+This value is reported in the package summary output and is accompanied by a standard error.
+Together, the Wald-type summaries and PCE plots allow \pkg{interpretnn} to provide both of the main pieces of information usually sought from regression-style output: whether a covariate appears to contribute to the fitted model, and how the fitted response changes with that covariate.
+
+\section{Relationship to existing software}\label{sec:software}
+
+The R ecosystem contains several packages for fitting neural networks and several packages for interpreting fitted machine-learning models.
+The contribution of \pkg{interpretnn} is different from both of these groups.
+It is not primarily a neural-network optimiser, and it is not a fully model-agnostic explainability package.
+Rather, it provides model-based statistical summaries for shallow FNNs by using the fitted neural-network parameterisation directly.
+
+\subsection{Neural-network fitting packages}\label{neural-network-fitting-packages}
+
+Packages such as \CRANpkg{nnet} \citep{nnet} and \CRANpkg{neuralnet} \citep{neuralnet} provide direct tools for fitting shallow neural networks in R.
+The \CRANpkg{keras} \citep{keras} and \CRANpkg{torch} \citep{torch} packages provide more general deep-learning frameworks that can be used to fit a much wider range of neural-network architectures.
+These packages are designed primarily for model fitting, training, and prediction.
+They typically provide access to fitted values, predictions, training histories, losses, and fitted weights.
+
+By contrast, \pkg{interpretnn} focuses on what happens after a shallow FNN has been fitted.
+Its purpose is to convert a fitted network into an object that can be summarised and visualised using statistical modelling tools.
+In this sense, \pkg{interpretnn} complements neural-network fitting packages rather than competing with them.
+
+The distinction is similar to the distinction between estimating a model and providing a statistical interface for interrogating it.
+For example, a fitted neural network may contain all of the information needed for prediction, but the user may still want covariate-level summaries, grouped tests for factor variables, uncertainty estimates, or effect plots.
+These are the outputs that \pkg{interpretnn} is designed to provide.
+
+\subsection{Model-agnostic interpretability packages}\label{model-agnostic-interpretability-packages}
+
+There are also several R packages for model-agnostic interpretability, including packages that provide partial dependence plots, accumulated local effects, variable-importance measures, surrogate models, or Shapley-value-based explanations.
+Examples include packages such as \CRANpkg{pdp} \citep{pdp}, \CRANpkg{iml} \citep{iml}, \CRANpkg{DALEX} \citep{DALEX}, and \CRANpkg{vip} \citep{vip}.
+
+These tools are valuable because they can be applied to many different fitted model classes.
+Their model-agnostic nature means that the same interpretability method can often be used for random forests, boosted trees, support vector machines, neural networks, and other predictive models.
+However, this generality also means that they typically do not use the specific likelihood-based parameterisation of a shallow FNN.
+They are primarily designed to explain fitted prediction functions rather than to provide regression-style summaries of model parameters.
+
+The approach in \pkg{interpretnn} is different.
+It uses the fitted FNN parameterisation to compute Wald-type summaries, covariance-based standard errors, and PCE uncertainty intervals.
+The resulting output is therefore closer in spirit to the output from classical statistical models, such as \code{lm()} and \code{glm()}, than to purely model-agnostic explainability tools.
+
+This distinction is important.
+A model-agnostic partial dependence plot can describe how predictions change as a covariate varies, but it does not usually provide a covariate-level Wald-type summary or a regression-style table based on the fitted neural-network parameters.
+Similarly, a variable-importance measure can rank predictors by predictive contribution, but it does not provide a model-based standard error for a covariate-effect estimate.
+\pkg{interpretnn} is designed to provide these statistically motivated summaries for the specific case of shallow FNNs.
+
+\subsection{Summary comparison}\label{summary-comparison}
+
+Table \ref{tab:software-comparison} summarises the relationship between \pkg{interpretnn} and selected related packages.
+The table is intended to highlight the role of \pkg{interpretnn} as a post-processing and interpretation layer rather than as a replacement for existing neural-network or explainability packages.
+
+\begin{table}
+
+\caption{\label{tab:software-comparison-table}Comparison of \pkg{interpretnn} with selected neural-network fitting and model-interpretability packages.}
+\centering
+\begin{tabular}[t]{l|l|l|l|l|l}
+\hline
+Package & Main role & Fits FNNs & Regression-style summaries & Covariate-level Wald summaries & PCE plots with uncertainty\\
+\hline
+\CRANpkg{nnet} & Fitting shallow neural networks. & Yes & Limited & No & No\\
+\hline
+\CRANpkg{neuralnet} & Fitting shallow neural networks. & Yes & Limited & No & No\\
+\hline
+\CRANpkg{keras} & Deep-learning interface. & Yes & No & No & No\\
+\hline
+\CRANpkg{torch} & Deep-learning framework. & Yes & No & No & No\\
+\hline
+\CRANpkg{pdp} & Partial dependence and related plots. & No & No & No & No\\
+\hline
+\CRANpkg{iml} & Model-agnostic interpretability. & No & No & No & No\\
+\hline
+\CRANpkg{DALEX} & Model-agnostic explainability. & No & No & No & No\\
+\hline
+\CRANpkg{vip} & Variable importance. & No & No & No & No\\
+\hline
+\pkg{interpretnn} & Statistical post-processing for shallow FNNs. & Via \code{nn\_fit()} convenience wrapper & Yes & Yes & Yes\\
+\hline
+\end{tabular}
+\end{table}
+
+The comparison is not intended to suggest that these packages serve the same purpose.
+Instead, it clarifies the niche filled by \pkg{interpretnn}.
+Neural-network packages provide fitting engines; model-agnostic interpretability packages provide general-purpose explanations of fitted prediction functions; \pkg{interpretnn} provides model-based, regression-style summaries for shallow FNNs.
+
+This positioning also motivates the design of the package.
+Rather than attempting to cover all neural-network architectures or all explainability methods, \pkg{interpretnn} focuses on a narrower statistical modelling setting: shallow FNNs fitted to tabular data, where likelihood-based summaries and covariate-effect visualisations can help make the fitted model more accessible to statisticians.
+
+\section{Package workflow}\label{sec:package-workflow}
+
+The main function in \pkg{interpretnn} is \code{interpretnn()}.
+It takes an existing fitted neural-network object and converts it into an object of class \code{"interpretnn"}:
+
+\begin{verbatim}
+interpretnn(object, ...)
+\end{verbatim}
+
+The resulting object stores the fitted weights, model matrix, response, likelihood information, covariance estimates, Wald-type summaries, covariate-effect estimates, and other quantities required by the package methods.
+The purpose of this object is to provide a common interface for obtaining statistical summaries from fitted FNNs.
+
+A typical workflow is:
+
+\begin{verbatim}
+# 1. Fit a neural network
+nn <- nn_fit(
+  formula = charges ~ .,
+  data = insurance,
+  q = 2,
+  n_init = 10,
+  lambda = 0.01,
+  pkg = "nnet"
+)
+
+# 2. Convert to an interpretnn object
+intnn <- interpretnn(nn)
+
+# 3. Inspect the fitted model
+print(intnn)
+summary(intnn)
+aov(intnn)
+
+# 4. Visualise the fitted model
+plot(intnn, which = c("age", "smoker"), conf_int = TRUE)
+plotnn(intnn)
+
+# 5. Predict for new observations
+predict(intnn, newdata = insurance[1:5, ])
+\end{verbatim}
+
+Although \pkg{interpretnn} provides the convenience function \code{nn\_fit()}, the package is not primarily a neural-network fitting package.
+Rather, it is designed as a post-processing and interpretation layer for fitted FNNs.
+Where possible, users can fit their neural network using an existing R package and then pass the fitted object to \code{interpretnn()}.
+
+\subsection{Fitting a neural network}\label{fitting-a-neural-network}
+
+For convenience, \pkg{interpretnn} includes the function \code{nn\_fit()}, which fits a shallow FNN using a formula interface.
+This allows users to fit a model using syntax that is close to standard modelling functions in R:
+
+\begin{verbatim}
+library(interpretnn)
+
+set.seed(1237019)
+
+nn <- nn_fit(
+  formula = charges ~ .,
+  data = insurance,
+  q = 2,
+  n_init = 10,
+  lambda = 0.01,
+  pkg = "nnet"
+)
+\end{verbatim}
+
+In this example, the response is \code{charges}, all remaining variables in \code{insurance} are used as covariates, and the fitted FNN has two hidden nodes.
+The argument \code{n\_init} controls the number of random initialisations used during fitting, while \code{lambda} controls the strength of the ridge penalty.
+The argument \code{pkg} specifies the package used to fit the neural network.
+
+The \code{nn\_fit()} function is intended to make \pkg{interpretnn} easy to use for standard examples and simple workflows.
+However, users who require more control over optimisation, architecture, or training can fit the neural network directly using a supported package and then apply \code{interpretnn()} to the resulting fitted object.
+
+\subsection{\texorpdfstring{Creating an \texttt{"interpretnn"} object}{Creating an "interpretnn" object}}\label{creating-an-interpretnn-object}
+
+Once a neural network has been fitted, the \code{interpretnn()} function converts it into an object of class \code{"interpretnn"}:
+
+\begin{verbatim}
+intnn <- interpretnn(object = nn)
+\end{verbatim}
+
+If the model was fitted using \code{nn\_fit()}, the fitted object already contains the model information needed by \code{interpretnn()}.
+If the neural network was fitted directly using another package, additional arguments may be required.
+For example, some fitted objects do not store the original model formula or training data, so these may need to be supplied separately.
+
+The object returned by \code{interpretnn()} contains the main quantities used by the package methods.
+The most important components are described in Table \ref{tab:interpretnn-components}.
+
+\begin{table}
+
+\caption{\label{tab:interpretnn-components-table}Main components of an object of class `interpretnn`.}
+\centering
+\begin{tabular}[t]{l|l}
+\hline
+Component & Description\\
+\hline
+`weights` & Vector of fitted neural-network parameters.\\
+\hline
+`loss\_val` & Value of the relevant loss function.\\
+\hline
+`n\_inputs` & Number of input nodes.\\
+\hline
+`n\_nodes` & Number of hidden nodes in each hidden layer.\\
+\hline
+`n\_layers` & Number of hidden layers.\\
+\hline
+`n\_param` & Number of model parameters.\\
+\hline
+`n` & Number of observations in the training data.\\
+\hline
+`loglike` & Value of the model log-likelihood.\\
+\hline
+`BIC` & Bayesian information criterion for the fitted model.\\
+\hline
+`eff` & Point-estimate partial covariate effects and standard errors.\\
+\hline
+`wald` & Multiple-parameter Wald-type summaries for input nodes and covariates.\\
+\hline
+`wald\_sp` & Single-parameter Wald-type summaries for individual weights.\\
+\hline
+`X` & Model matrix used by the fitted neural network.\\
+\hline
+`y` & Response vector.\\
+\hline
+`response` & Response type, such as continuous or binary.\\
+\hline
+`lambda` & Ridge penalty used in fitting.\\
+\hline
+\end{tabular}
+\end{table}
+
+The user will not usually need to access these components directly.
+Instead, they are used internally by the S3 methods described below.
+
+\subsection{Printing and summarising the fitted network}\label{printing-and-summarising-the-fitted-network}
+
+The \code{print()} method provides a compact description of the fitted network, including the model call and the neural-network architecture:
+
+\begin{verbatim}
+print(intnn)
+\end{verbatim}
+
+The \code{summary()} method provides the main regression-style summary of the fitted FNN:
+
+\begin{verbatim}
+summary(intnn)
+\end{verbatim}
+
+The summary output reports, for each covariate, the point-estimate partial covariate effect, its standard error, the multiple-parameter Wald-type statistic, and the corresponding p-value.
+This gives a compact overview of both the estimated covariate effect and the evidence that the covariate contributes to the fitted FNN.
+
+By default, the summary focuses on input-level and covariate-level summaries.
+Single-parameter Wald-type summaries for individual neural-network weights can also be displayed:
+
+\begin{verbatim}
+summary(intnn, wald_single_par = TRUE)
+\end{verbatim}
+
+These individual-weight summaries are mainly diagnostic, since individual neural-network weights are generally less interpretable than input-level or covariate-level summaries.
+
+\subsection{Analysis-of-variance-style summaries}\label{analysis-of-variance-style-summaries}
+
+The \code{aov()} method provides covariate-level Wald-type summaries:
+
+\begin{verbatim}
+aov(intnn)
+\end{verbatim}
+
+For continuous or binary covariates, this is equivalent to the input-level multiple-parameter Wald-type summary reported by \code{summary()}.
+For categorical covariates represented by multiple dummy variables, \code{aov()} tests the associated input nodes jointly.
+This provides a summary closer in spirit to an analysis-of-variance table for standard regression models, where the contribution of the original covariate is assessed rather than the contribution of each dummy variable separately.
+
+\subsection{Visualising the fitted network}\label{visualising-the-fitted-network}
+
+The \code{plotnn()} function visualises the fitted neural-network architecture and annotates it using the Wald-type summaries:
+
+\begin{verbatim}
+plotnn(intnn)
+\end{verbatim}
+
+By default, statistically significant weights and input nodes are highlighted, while non-significant components are displayed in a lighter colour.
+The significance threshold can be controlled using the \code{alpha} argument, and colours can be changed using \code{col.sig} and \code{col.insig}.
+Intercept terms are omitted by default but can be displayed using \code{intercept = TRUE}.
+
+\subsection{Covariate-effect plots}\label{covariate-effect-plots}
+
+The \code{plot()} method produces partial covariate-effect plots:
+
+\begin{verbatim}
+plot(intnn, which = c("age", "smoker"), conf_int = TRUE)
+\end{verbatim}
+
+The argument \code{which} selects the covariates to be plotted.
+If \code{conf\_int = TRUE}, uncertainty intervals are added to the plot.
+The uncertainty method can be specified using the \code{method} argument:
+
+\begin{verbatim}
+plot(
+  intnn,
+  which = "age",
+  conf_int = TRUE,
+  method = "delta_method"
+)
+\end{verbatim}
+
+Alternatively, simulation from the approximate sampling distribution of the fitted parameters can be used:
+
+\begin{verbatim}
+plot(
+  intnn,
+  which = "age",
+  conf_int = TRUE,
+  method = "mlesim"
+)
+\end{verbatim}
+
+For continuous covariates, the PCE plot shows how the estimated covariate effect varies across the covariate range.
+For binary covariates, it displays the estimated change in fitted response when the covariate changes from 0 to 1.
+This allows the user to inspect not only whether a covariate appears to contribute to the fitted network, but also how the fitted response changes with that covariate.
+
+\subsection{Prediction}\label{prediction}
+
+The \code{predict()} method returns fitted values for the training data or predictions for new observations:
+
+\begin{verbatim}
+predict(intnn)
+\end{verbatim}
+
+\begin{verbatim}
+predict(intnn, newdata = insurance[1:5, ])
+\end{verbatim}
+
+This allows an \code{"interpretnn"} object to be used in a similar way to other fitted model objects in R.
+
+\subsection{Summary of the workflow}\label{summary-of-the-workflow}
+
+Overall, the package workflow is designed to mirror standard statistical modelling practice in R.
+A neural network is first fitted, either using \code{nn\_fit()} or an external neural-network package.
+The fitted object is then converted using \code{interpretnn()}, after which standard methods such as \code{print()}, \code{summary()}, \code{aov()}, \code{plot()}, and \code{predict()} can be used.
+This workflow allows users to inspect fitted FNNs using tools that are familiar from regression modelling, while retaining the flexibility of neural-network fitting packages.
+
+\section{Applied example}\label{sec:example}
+
+This section demonstrates the main functionality of \pkg{interpretnn} using the insurance data considered in \citet{mcinerney2023feedforward}.
+The aim is not to repeat the full applied analysis from that paper, but to show how the package can be used to obtain regression-style summaries, covariate-level tests, PCE plots, network visualisations, and predictions from a fitted shallow FNN.
+
+\subsection{Data}\label{data}
+
+The data contain information on \(n = 1338\) insurance beneficiaries.
+The response variable, \code{charges}, is the total medical expenses charged to an insurance plan.
+The explanatory variables are the beneficiary's age, sex, body mass index, number of children covered by the plan, smoking status, and region of residence.
+
+\begin{verbatim}
+data("insurance", package = "interpretnn")
+
+str(insurance)
+\end{verbatim}
+
+For this example, we model \code{charges} using all available covariates:
+
+\begin{verbatim}
+formula <- charges ~ age + sex + bmi + children + smoker + region
+\end{verbatim}
+
+The variables include both continuous covariates, such as \code{age} and \code{bmi}, and categorical covariates, such as \code{sex}, \code{smoker}, and \code{region}.
+This makes the data useful for illustrating both input-level summaries and covariate-level summaries for factors represented by multiple dummy variables.
+
+\subsection{Fitting the neural network}\label{fitting-the-neural-network}
+
+We first fit a single-hidden-layer FNN using the convenience function \code{nn\_fit()}:
+
+\begin{verbatim}
+library(interpretnn)
+
+set.seed(1237019)
+
+nn <- nn_fit(
+  formula = charges ~ age + sex + bmi + children + smoker + region,
+  data = insurance,
+  q = 2,
+  n_init = 10,
+  lambda = 0.01,
+  pkg = "nnet"
+)
+\end{verbatim}
+
+The fitted model has two hidden nodes and uses a ridge penalty with \(\lambda = 0.01\).
+The argument \code{n\_init = 10} specifies that ten random initialisations are used during fitting, with the best fitted model retained.
+This is useful because neural-network optimisation can depend on the initial parameter values.
+
+The object \code{nn} contains the fitted network and the additional model information required by \pkg{interpretnn}.
+It can then be converted into an \code{"interpretnn"} object:
+
+\begin{verbatim}
+intnn <- interpretnn(nn)
+\end{verbatim}
+
+\subsection{Printing the fitted network}\label{printing-the-fitted-network}
+
+The \code{print()} method gives a compact overview of the fitted FNN:
+
+\begin{verbatim}
+print(intnn)
+\end{verbatim}
+
+The printed output reports the model call, response type, number of observations, number of input nodes, number of hidden nodes, and the value of the ridge penalty.
+This provides a quick check that the fitted network has the intended architecture before examining the statistical summaries.
+
+\subsection{Regression-style summary}\label{regression-style-summary}
+
+The \code{summary()} method gives the main regression-style summary produced by \pkg{interpretnn}:
+
+\begin{verbatim}
+summary(intnn)
+\end{verbatim}
+
+The output contains one row for each original covariate.
+For each covariate, \pkg{interpretnn} reports a point-estimate partial covariate effect, its standard error, a Wald-type statistic, and a corresponding p-value.
+Thus, the summary combines two pieces of information that are commonly sought in regression modelling: an estimate of the size of the covariate effect and a test of whether the covariate appears to contribute to the fitted model.
+
+For example, in the insurance data, variables such as \code{age}, \code{bmi}, \code{children}, and \code{smoker} are expected to contribute strongly to the fitted response.
+The summary output allows these effects to be inspected in a form that is closer to a classical regression summary than to the raw weight output usually obtained from neural-network software.
+
+By default, \code{summary()} focuses on covariate-level summaries.
+Single-parameter summaries for individual neural-network weights can also be displayed:
+
+\begin{verbatim}
+summary(intnn, wald_single_par = TRUE)
+\end{verbatim}
+
+These individual-weight summaries are mainly diagnostic.
+For interpretation, the covariate-level summaries and the PCE plots are usually more informative than individual input-to-hidden-layer weights.
+
+\subsection{Analysis-of-variance-style summary}\label{analysis-of-variance-style-summary}
+
+The \code{aov()} method provides covariate-level Wald-type summaries:
+
+\begin{verbatim}
+aov(intnn)
+\end{verbatim}
+
+For continuous and binary covariates, this corresponds to testing the group of weights connecting the covariate to the hidden layer.
+For categorical covariates represented by multiple dummy variables, such as \code{region}, the method tests all associated input nodes jointly.
+This gives a summary that is analogous in spirit to an analysis-of-variance table, where the contribution of the original covariate is assessed rather than the contribution of each dummy variable separately.
+
+This is particularly useful when interpreting factor variables.
+For example, rather than separately inspecting the dummy variables corresponding to different regions, the \code{aov()} method gives a single covariate-level summary for \code{region}.
+
+\subsection{Network visualisation}\label{network-visualisation}
+
+The fitted architecture can be visualised using \code{plotnn()}:
+
+\begin{verbatim}
+plotnn(intnn)
+\end{verbatim}
+
+The plot displays the input nodes, hidden nodes, output node, and fitted connections.
+By default, statistically significant input nodes and weights are highlighted, while non-significant components are shown in a lighter colour.
+This provides a compact visual summary of the fitted network and the associated Wald-type summaries.
+
+The significance threshold can be changed using the \code{alpha} argument:
+
+\begin{verbatim}
+plotnn(intnn, alpha = 0.01)
+\end{verbatim}
+
+Intercept terms can also be displayed if desired:
+
+\begin{verbatim}
+plotnn(intnn, intercept = TRUE)
+\end{verbatim}
+
+\subsection{Partial covariate-effect plots}\label{partial-covariate-effect-plots}
+
+The \code{plot()} method produces PCE plots.
+For a continuous covariate such as \code{bmi}, the PCE plot shows how the estimated effect of a \(d\)-unit increase in BMI varies across the observed BMI range:
+
+\begin{verbatim}
+plot(intnn, which = "bmi", conf_int = TRUE)
+\end{verbatim}
+
+If the PCE is approximately constant, the fitted model suggests an approximately linear effect for that covariate.
+If the PCE varies across the covariate range, the fitted model suggests a non-linear effect.
+This is one of the main advantages of the PCE plot: it gives an effect-size interpretation while still allowing the fitted neural network to represent non-linear relationships.
+
+For binary covariates, the PCE corresponds to the average change in fitted response when the covariate changes from 0 to 1.
+For example, the effect of smoking status can be visualised using:
+
+\begin{verbatim}
+plot(intnn, which = "smoker", conf_int = TRUE)
+\end{verbatim}
+
+Several covariates can be plotted at once:
+
+\begin{verbatim}
+plot(
+  intnn,
+  which = c("age", "bmi", "children", "smoker"),
+  conf_int = TRUE
+)
+\end{verbatim}
+
+The uncertainty intervals are computed using the approximate sampling distribution of the fitted parameters.
+The default uncertainty method can be changed using the \code{method} argument.
+For example, the delta-method intervals are obtained using:
+
+\begin{verbatim}
+plot(
+  intnn,
+  which = "age",
+  conf_int = TRUE,
+  method = "delta_method"
+)
+\end{verbatim}
+
+Alternatively, simulation from the approximate sampling distribution of the fitted parameters can be used:
+
+\begin{verbatim}
+plot(
+  intnn,
+  which = "age",
+  conf_int = TRUE,
+  method = "mlesim"
+)
+\end{verbatim}
+
+\subsection{Visualising interactions}\label{visualising-interactions}
+
+Because FNNs can represent interactions between covariates, it can also be useful to examine whether a PCE changes across the values of another covariate.
+For example, the effect of \code{bmi} can be plotted separately for different smoking-status groups:
+
+\begin{verbatim}
+plot(
+  intnn,
+  which = "bmi",
+  by = "smoker",
+  conf_int = TRUE
+)
+\end{verbatim}
+
+If the resulting PCE curves differ substantially between the two smoking-status groups, this suggests that the fitted network has captured an interaction between \code{bmi} and \code{smoker}.
+This type of plot is exploratory, but it is useful for communicating how the fitted neural network changes across different regions of the covariate space.
+
+\subsection{Prediction}\label{prediction-1}
+
+The \code{predict()} method returns fitted values for the training data when no new data are supplied:
+
+\begin{verbatim}
+fitted_values <- predict(intnn)
+
+head(fitted_values)
+\end{verbatim}
+
+Predictions for new observations can be obtained using the \code{newdata} argument:
+
+\begin{verbatim}
+predict(intnn, newdata = insurance[1:5, ])
+\end{verbatim}
+
+This gives \code{"interpretnn"} objects a prediction interface similar to other fitted model objects in R.
+The same object can therefore be used both for interpretation and prediction.
+
+\subsection{Summary of the example}\label{summary-of-the-example}
+
+This example illustrates the main role of \pkg{interpretnn}: it converts a fitted shallow FNN into an object that can be inspected using familiar statistical modelling tools.
+The fitted network can be printed, summarised, visualised, and used for prediction through standard R methods.
+The resulting output is not intended to replace predictive validation or the methodological checks discussed in \citet{mcinerney2023feedforward}.
+Rather, it provides a practical interface for interpreting fitted shallow FNNs using regression-style summaries and covariate-effect visualisations.
+
+\section{Supported objects and methods}\label{sec:methods}
+
+This section summarises the model types, objects, and user-facing methods currently supported by \pkg{interpretnn}.
+The package is organised around the \code{"interpretnn"} object, which stores the fitted neural-network parameters together with the additional quantities required for statistical summaries, visualisation, and prediction.
+
+\subsection{Supported model types}\label{supported-model-types}
+
+The current version of \pkg{interpretnn} is designed for single-hidden-layer feedforward neural networks fitted to tabular data.
+The package supports continuous and binary response variables.
+For continuous responses, the fitted network is treated as a non-linear Gaussian regression model.
+For binary responses, the fitted network is treated as a Bernoulli regression model with a logistic output activation.
+
+The main supported architecture is a shallow FNN of the form described in Section \ref{sec:fnn-background}.
+This scope is deliberate: the inferential summaries implemented in the package are most naturally suited to parsimonious shallow networks, where the model can be interpreted as a flexible extension of classical regression.
+The package is not intended to provide general-purpose inference for arbitrary deep-learning architectures.
+
+Input variables may be continuous, binary, or categorical.
+Categorical variables are represented internally through dummy variables in the model matrix.
+Where possible, \pkg{interpretnn} retains the mapping between dummy variables and the original covariates, allowing categorical predictors to be summarised at the covariate level rather than only at the dummy-variable level.
+
+\subsection{Supported fitting backends}\label{supported-fitting-backends}
+
+The package includes the convenience function \code{nn\_fit()}, which provides a formula-based interface for fitting shallow FNNs before applying the interpretation tools.
+This function is intended for standard examples and workflows where the user wants to fit and interpret a simple FNN using familiar R syntax.
+
+The broader design of \pkg{interpretnn}, however, is based on post-processing fitted neural networks rather than replacing existing fitting software.
+The function \code{interpretnn()} is responsible for converting a fitted neural-network object into an object of class \code{"interpretnn"}.
+For fitted objects produced by \code{nn\_fit()}, the required model information is stored automatically.
+For objects fitted directly using other packages, additional information such as the original formula, model matrix, response vector, response type, or penalty value may be required if it is not stored in the fitted object.
+
+This design separates model fitting from model interpretation.
+Neural-network optimisation can therefore be handled by existing software, while \pkg{interpretnn} focuses on providing statistical summaries and visualisations once a model has been fitted.
+
+\subsection{User-facing functions and methods}\label{user-facing-functions-and-methods}
+
+The main user-facing functions and methods are summarised in Table \ref{tab:interpretnn-methods}.
+Together, these functions are designed to make a fitted FNN behave more like a standard statistical model object in R.
+
+\begin{table}
+
+\caption{\label{tab:interpretnn-methods-table}Main user-facing functions and methods in `interpretnn`.}
+\centering
+\begin{tabular}[t]{l|l}
+\hline
+Function & Purpose\\
+\hline
+`nn\_fit()` & Fits a shallow FNN using a formula interface.\\
+\hline
+`interpretnn()` & Converts a fitted neural-network object into an object of class `interpretnn`.\\
+\hline
+`print()` & Prints a compact description of the fitted network and its architecture.\\
+\hline
+`summary()` & Produces regression-style summaries, including PCE estimates and Wald-type summaries.\\
+\hline
+`aov()` & Produces covariate-level Wald-type summaries, including grouped summaries for categorical covariates.\\
+\hline
+`plot()` & Produces partial covariate-effect plots, with optional uncertainty intervals.\\
+\hline
+`plotnn()` & Produces a neural-network architecture diagram annotated with Wald-type summaries.\\
+\hline
+`predict()` & Returns fitted values or predictions for new observations.\\
+\hline
+\end{tabular}
+\end{table}
+
+The \code{print()} method gives a concise description of the fitted model, including the model call, response type, sample size, number of input nodes, number of hidden nodes, and penalty value.
+It is intended as a quick check of the model object and architecture.
+
+The \code{summary()} method provides the main regression-style output.
+It reports covariate-level effect estimates, standard errors, Wald-type statistics, and p-values.
+For categorical predictors, the summary can report effects at the level of the original covariate, rather than requiring the user to interpret each dummy variable separately.
+Single-parameter summaries for individual weights are also available, but these are best viewed as diagnostic quantities.
+
+The \code{aov()} method provides analysis-of-variance-style output.
+For continuous and binary inputs, this is equivalent to the input-level Wald-type summary.
+For categorical covariates represented by several dummy variables, the method tests the associated input nodes jointly.
+This is useful when the analyst wants to assess whether a factor contributes to the fitted network as a whole.
+
+The \code{plot()} method produces PCE plots.
+For continuous covariates, these plots show how the estimated effect of a change in the covariate varies across the observed covariate range.
+For binary covariates, the plot summarises the average change in the fitted response when the covariate changes from 0 to 1.
+Uncertainty intervals can be added using either the delta method or simulation from the approximate sampling distribution of the fitted parameters.
+
+The \code{plotnn()} function produces a visual representation of the fitted architecture.
+This plot shows the input nodes, hidden nodes, output node, and fitted connections.
+It can also highlight statistically significant input nodes and weights using the Wald-type summaries computed by the package.
+
+Finally, the \code{predict()} method provides a standard prediction interface.
+When no new data are supplied, it returns fitted values for the training data.
+When a \code{newdata} argument is supplied, it returns predictions for the new observations.
+
+\subsection{Output objects}\label{output-objects}
+
+The main object returned by \code{interpretnn()} has class \code{"interpretnn"}.
+This object contains fitted parameters, data objects, likelihood quantities, covariance estimates, Wald-type summaries, and covariate-effect summaries.
+Users will typically interact with this object through the methods described above rather than by directly extracting components.
+
+The summary and analysis-of-variance methods return structured output that can be printed, inspected, or stored for later use.
+Similarly, the plotting methods return graphical objects where appropriate, allowing users to further modify or combine the plots using standard R graphics workflows.
+
+The overall aim is to provide an interface that feels familiar to users of standard statistical modelling functions while allowing the fitted model to remain a neural network.
+In this way, \pkg{interpretnn} acts as a bridge between neural-network fitting software and regression-style statistical interpretation.
+
+\section{Practical guidance and limitations}\label{sec:limitations}
+
+The summaries produced by \pkg{interpretnn} are intended to help users interpret fitted shallow FNNs in a regression-style workflow.
+However, they should be used with the same care that is required when interpreting any non-linear model, and with additional care due to the particular features of neural-network parameterisations.
+This section summarises the main practical considerations.
+
+First, \pkg{interpretnn} is intended for shallow, parsimonious FNNs fitted to tabular data.
+The methodology implemented in the package is most appropriate when the fitted network is small enough to be inspected and when the number of hidden nodes is not excessive relative to the number of covariates and observations.
+In this setting, the model can be viewed as a flexible extension of classical regression.
+For large or highly overparameterised networks, the individual parameters are typically much harder to interpret, and covariance-based summaries may become unstable.
+
+Second, the use of a ridge penalty, or weight decay, is recommended.
+The penalty can improve numerical stability and reduce issues associated with near-singular Hessian matrices.
+In \pkg{interpretnn}, the ridge penalty is also incorporated into the computation of the covariance matrix and related Wald-type summaries.
+The value of the penalty should therefore be treated as part of the fitted model.
+The package reports the value of \(\lambda\) used in fitting so that the interpretation of the resulting summaries is tied to the fitted regularised network.
+
+Third, the fitted neural network may depend on the optimisation procedure.
+Neural-network objective functions are generally non-convex, and different random initialisations can lead to different fitted parameter values.
+For this reason, users should use multiple random initialisations when fitting the model, inspect whether the fitted loss is stable, and avoid placing too much emphasis on summaries from a single unstable fit.
+The convenience function \code{nn\_fit()} includes the argument \code{n\_init} for this purpose.
+
+Fourth, individual neural-network weights should be interpreted cautiously.
+A single input-to-hidden-layer weight is only one component of the fitted function, and its meaning depends on the remaining weights in the network.
+In addition, hidden nodes can be permuted without changing the fitted input-output function, and sign or label symmetries can lead to equivalent parameterisations.
+For this reason, \pkg{interpretnn} reports individual-weight summaries mainly as diagnostic quantities.
+In most applications, input-level summaries, covariate-level summaries, and PCE plots will be more useful for interpretation.
+
+Fifth, categorical covariates should generally be interpreted at the covariate level rather than only at the dummy-variable level.
+When a factor is represented by several dummy variables, separate input-level summaries can be difficult to interpret in isolation.
+The \code{aov()} method therefore groups the associated input nodes and provides a covariate-level Wald-type summary.
+This gives an output closer in spirit to an analysis-of-variance table for a standard regression model.
+
+Sixth, PCE plots should be interpreted as summaries of the fitted model, not as causal effects.
+A PCE describes how the fitted response changes when a covariate is varied while the remaining covariates are averaged over their observed values.
+As with partial dependence plots more generally, interpretation can be more difficult when covariates are strongly correlated or when the plot evaluates combinations of covariate values that are rare in the observed data.
+The plots are therefore best viewed as descriptive tools for understanding the fitted prediction function.
+
+Finally, the inferential summaries produced by \pkg{interpretnn} do not replace model checking or predictive validation.
+Users should still assess predictive performance using appropriate validation procedures, examine the sensitivity of the fitted model to architecture and penalty choices, and consider whether the chosen neural network is appropriate for the scientific or applied question.
+The package is designed to make fitted shallow FNNs more interpretable, but the quality of the resulting interpretation depends on the quality and stability of the fitted model.
+
+\section{Conclusion}\label{sec:conclusion}
+
+The \pkg{interpretnn} package provides a statistical post-processing layer for shallow feedforward neural networks in R.
+Rather than introducing a new neural-network optimiser, the package converts fitted FNNs into a common \code{"interpretnn"} object and provides familiar methods for inspecting, summarising, visualising, and predicting from the fitted model.
+In this way, \pkg{interpretnn} aims to make shallow neural networks behave more like standard statistical model objects in R.
+
+The package implements regression-style summaries, Wald-type summaries for individual weights and groups of weights, analysis-of-variance-style summaries for covariates, PCE plots with uncertainty estimates, architecture diagrams annotated with statistical summaries, and prediction methods for new observations.
+These tools are designed to complement existing neural-network fitting packages by providing outputs that are more familiar to users of classical regression models.
+
+The statistical methodology underlying these summaries is developed in \citet{mcinerney2023feedforward}.
+The contribution of the present article is to describe the corresponding R implementation and demonstrate how the methodology can be used in practice through a coherent package workflow.
+By combining neural-network flexibility with regression-style output, \pkg{interpretnn} provides a practical interface for statisticians who wish to use shallow FNNs as interpretable statistical modelling tools rather than purely predictive algorithms.
+
+Future development of the package may include broader support for additional fitting backends, further response distributions, alternative uncertainty estimation methods, and additional diagnostic tools for assessing model stability.
+More generally, \pkg{interpretnn} provides a foundation for integrating shallow neural networks more naturally into the statistical modelling workflow in R.
+
+\section{Acknowledgements}\label{acknowledgements}
+
+This publication has emanated from research conducted with the financial support of Science Foundation Ireland under Grant number 18/CRT/6049.
+The second author was supported by the Confirm Smart Manufacturing Centre (\url{https://confirm.ie/}) funded by Science Foundation Ireland (Grant Number: 16/RC/3918).
+For the purpose of Open Access, the authors have applied a CC BY public copyright licence to any Author Accepted Manuscript version arising from this submission.
+
+\bibliography{RJreferences.bib}
+
+\address{%
+Andrew McInerney\\
+University of Limerick\\%
+Department of Mathematics and Statistics\\ Limerick, Ireland\\
+%
+%
+\textit{ORCiD: \href{https://orcid.org/0000-0002-2348-2159}{0000-0002-2348-2159}}\\%
+\href{mailto:andrew.mcinerney@ul.ie}{\nolinkurl{andrew.mcinerney@ul.ie}}%
+}
+
+\address{%
+Kevin Burke\\
+University of Limerick\\%
+Department of Mathematics and Statistics\\ Limerick, Ireland\\
+%
+%
+%
+\href{mailto:kevin.burke@ul.ie}{\nolinkurl{kevin.burke@ul.ie}}%
+}

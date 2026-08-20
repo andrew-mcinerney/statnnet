@@ -6,6 +6,10 @@
 #'   documented.
 #' @param weights Include individual-weight Wald diagnostics in the summary.
 #' @param level Confidence level for individual-weight intervals.
+#' @param effects Effect summaries to include. `"rowwise"` (the default)
+#'   computes fast average predictive finite differences over the observed
+#'   covariate rows. `"partial"` computes the more expensive average
+#'   partial-dependence contrasts used by [pce()], and `"none"` omits effects.
 #' @name statnnet-methods
 NULL
 
@@ -148,7 +152,8 @@ print.anova.statnnet <- function(x, ...) {
 
 #' @rdname statnnet-methods
 #' @export
-summary.statnnet <- function(object, weights = FALSE, level = 0.95, ...) {
+summary.statnnet <- function(object, weights = FALSE, level = 0.95,
+                             effects = c("rowwise", "none", "partial"), ...) {
   if (length(list(...)) > 0L) {
     stop("Unused arguments were supplied to `summary.statnnet()`.", call. = FALSE)
   }
@@ -158,17 +163,30 @@ summary.statnnet <- function(object, weights = FALSE, level = 0.95, ...) {
   if (!is.numeric(level) || length(level) != 1L || level <= 0 || level >= 1) {
     stop("`level` must be between zero and one.", call. = FALSE)
   }
+  effects <- match.arg(effects)
 
   uncertainty <- if (isTRUE(object$diagnostics$covariance_available)) "delta" else "none"
-  pce_rows <- lapply(object$variables, function(variable) {
-    pce(
-      object,
-      variable = variable,
-      type = "average",
-      uncertainty = uncertainty,
-      level = level
-    )
-  })
+  pce_rows <- switch(
+    effects,
+    none = list(),
+    rowwise = lapply(object$variables, function(variable) {
+      .average_predictive_effect(
+        object,
+        variable = variable,
+        uncertainty = uncertainty,
+        level = level
+      )
+    }),
+    partial = lapply(object$variables, function(variable) {
+      pce(
+        object,
+        variable = variable,
+        type = "average",
+        uncertainty = uncertainty,
+        level = level
+      )
+    })
+  )
   pce_table <- if (length(pce_rows)) do.call(rbind, pce_rows) else data.frame()
   rownames(pce_table) <- NULL
 
@@ -179,6 +197,7 @@ summary.statnnet <- function(object, weights = FALSE, level = 0.95, ...) {
     architecture = object$architecture,
     objective = object$objective,
     diagnostics = object$diagnostics,
+    effects = effects,
     pce = pce_table,
     grouped_wald = stats::anova(object),
     parameter_wald = if (weights) .parameter_wald(object, level = level) else NULL
@@ -203,8 +222,15 @@ print.summary.statnnet <- function(x, ...) {
   if (!isTRUE(x$diagnostics$covariance_available)) {
     cat("Uncertainty unavailable: ", x$diagnostics$covariance_reason, "\n", sep = "")
   }
-  cat("\nAverage partial covariate effects\n")
-  print.data.frame(x$pce, row.names = FALSE)
+  if (identical(x$effects, "rowwise")) {
+    cat("\nAverage predictive finite-difference effects\n")
+    print.data.frame(x$pce, row.names = FALSE)
+  } else if (identical(x$effects, "partial")) {
+    cat("\nAverage partial covariate effects\n")
+    print.data.frame(x$pce, row.names = FALSE)
+  } else {
+    cat("\nEffect summaries: omitted\n")
+  }
   cat("\n")
   print(x$grouped_wald)
   if (!is.null(x$parameter_wald)) {

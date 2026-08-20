@@ -9,6 +9,7 @@
   variable = NULL,
   uncertainty = c("delta", "simulation", "none"),
   level = 0.95,
+  by = NULL,
   ...
 )
 }
@@ -21,6 +22,10 @@ predictors.}
 \item{uncertainty}{One of \code{"delta"}, \code{"simulation"}, or \code{"none"}.}
 
 \item{level}{Confidence level.}
+
+\item{by}{Optional conditioning predictor. Two PCE curves are drawn at the
+observed mean minus and plus one standard deviation for a continuous
+predictor, or at both fitted levels for a binary predictor.}
 
 \item{...}{Additional arguments passed to \code{\link[=pce]{pce()}}.}
 }

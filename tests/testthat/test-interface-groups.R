@@ -136,3 +136,45 @@ test_that("summary and anova return structured objects", {
   expect_true(is.data.frame(result$pce))
   expect_true(is.data.frame(result$parameter_wald))
 })
+
+test_that("summary uses fast observed-row effects by default", {
+  data <- make_gaussian_data()
+  fit <- fit_gaussian(data)
+  model <- suppressWarnings(statnnet(fit, data = data))
+  result <- summary(model)
+
+  d <- stats::sd(data$x1)
+  high <- low <- data
+  high$x1 <- high$x1 + d
+  expected <- mean(
+    statnnet:::.nn_predict_matrix(
+      statnnet:::.build_model_matrix(model, high),
+      model$weights, 1, model$response
+    ) - statnnet:::.nn_predict_matrix(
+      statnnet:::.build_model_matrix(model, low),
+      model$weights, 1, model$response
+    )
+  )
+
+  expect_identical(result$effects, "rowwise")
+  expect_equal(result$pce$estimate[result$pce$variable == "x1"], expected)
+})
+
+test_that("summary effect modes preserve exact PCEs or omit effects", {
+  data <- make_gaussian_data(40)
+  fit <- fit_gaussian(data)
+  model <- suppressWarnings(statnnet(fit, data = data))
+
+  partial <- summary(model, effects = "partial")
+  expected <- do.call(rbind, lapply(model$variables, function(variable) {
+    pce(model, variable, type = "average", uncertainty = "delta")
+  }))
+  rownames(expected) <- NULL
+  omitted <- summary(model, effects = "none")
+
+  expect_equal(partial$pce, expected)
+  expect_identical(partial$effects, "partial")
+  expect_identical(omitted$effects, "none")
+  expect_equal(nrow(omitted$pce), 0L)
+  expect_error(summary(model, effects = "unknown"), "one of")
+})

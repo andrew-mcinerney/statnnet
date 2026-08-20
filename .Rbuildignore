@@ -11,5 +11,6 @@
 ^doc$
 ^Meta$
 ^cran-comments\.md$
+^paper$
 ^statnnet_[0-9.]+\.tar\.gz$
 ^statnnet\.Rcheck$

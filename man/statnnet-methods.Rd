@@ -20,7 +20,13 @@
 
 \method{anova}{statnnet}(object, ...)
 
-\method{summary}{statnnet}(object, weights = FALSE, level = 0.95, ...)
+\method{summary}{statnnet}(
+  object,
+  weights = FALSE,
+  level = 0.95,
+  effects = c("rowwise", "none", "partial"),
+  ...
+)
 }
 \arguments{
 \item{x, object}{A \code{statnnet} object.}
@@ -33,6 +39,11 @@ documented.}
 \item{weights}{Include individual-weight Wald diagnostics in the summary.}
 
 \item{level}{Confidence level for individual-weight intervals.}
+
+\item{effects}{Effect summaries to include. \code{"rowwise"} (the default)
+computes fast average predictive finite differences over the observed
+covariate rows. \code{"partial"} computes the more expensive average
+partial-dependence contrasts used by \code{\link[=pce]{pce()}}, and \code{"none"} omits effects.}
 }
 \description{
 Methods for statnnet objects
