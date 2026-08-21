@@ -7,10 +7,13 @@
 #' @param weights Include individual-weight Wald diagnostics in the summary.
 #' @param level Confidence level for individual-weight intervals and pointwise
 #'   effect intervals. Curve intervals are not simultaneous confidence bands.
-#' @param effects Effect summaries to include. `"rowwise"` (the default)
-#'   computes fast average predictive finite differences over the observed
-#'   covariate rows. `"partial"` computes the more expensive average
-#'   partial-dependence contrasts used by [pce()], and `"none"` omits effects.
+#' @param effects Effect estimand to include. `"rowwise"` (the default) computes
+#'   the average observed-row predictive finite difference by changing the focal
+#'   predictor within each observed covariate row and then averaging. `"partial"`
+#'   computes the average partial-dependence finite-difference contrast used by
+#'   [pce()], which additionally averages over the observed focal-predictor
+#'   values. These estimands generally differ when the fitted response contains
+#'   interactions. `"none"` omits effect summaries.
 #' @name statnnet-methods
 NULL
 
@@ -224,7 +227,7 @@ print.summary.statnnet <- function(x, ...) {
     cat("Uncertainty unavailable: ", x$diagnostics$covariance_reason, "\n", sep = "")
   }
   if (identical(x$effects, "rowwise")) {
-    cat("\nAverage predictive finite-difference effects\n")
+    cat("\nAverage observed-row predictive finite-difference effects\n")
     print.data.frame(x$pce, row.names = FALSE)
   } else if (identical(x$effects, "partial")) {
     cat("\nAverage partial covariate effects\n")

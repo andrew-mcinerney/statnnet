@@ -48,7 +48,7 @@ output:
     self_contained: yes
     toc: no
   rjtools::rjournal_pdf_article: default
-bibliography: RJreferences.bib
+bibliography: mcinerney-burke.bib
 editor_options: 
   markdown: 
     wrap: sentence

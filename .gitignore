@@ -17,3 +17,5 @@ inst/doc
 /paper/*.log
 /paper/*.out
 /paper/Rplots.pdf
+/paper/simulations/*/results/
+/paper/simulations/*/runtime-benchmark-*.csv

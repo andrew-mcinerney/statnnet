@@ -35,7 +35,7 @@ fit <- nnet(
 
 The ordinary `nnet` summary remains available on the original fit. The
 `statnnet` object adds validation, covariance diagnostics, grouped tests, and
-partial covariate effects.
+two explicitly distinguished finite-difference effect summaries.
 
 ```{r augment}
 summary(fit)
@@ -48,7 +48,16 @@ model <- statnnet(
 )
 
 model
-summary(model)
+summary(model, effects = "rowwise")
+```
+
+The default `"rowwise"` summary changes the focal predictor within each
+observed covariate row before averaging the prediction differences. It is not
+an average partial-dependence effect. The more computationally intensive
+average partial-dependence contrast is requested explicitly:
+
+```{r partial-summary}
+summary(model, effects = "partial")
 ```
 
 `anova()` groups all model-matrix columns belonging to the same formula term.
@@ -59,9 +68,10 @@ variables.
 anova(model)
 ```
 
-Partial covariate effects are finite differences of partial dependence. They
-summarise the fitted response function and should not be interpreted causally.
-Correlated predictors may lead to poorly supported predictor combinations.
+`pce()` returns finite differences of the partial-dependence function rather
+than the default observed-row summary. These effects describe the fitted
+response function and should not be interpreted causally. Correlated
+predictors may lead to poorly supported predictor combinations.
 
 ```{r pce}
 pce(model, "rm", length_out = 5)

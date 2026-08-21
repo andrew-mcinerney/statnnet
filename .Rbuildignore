@@ -1,5 +1,8 @@
 ^statnnet\.Rproj$
 ^\.Rproj\.user$
+^\.git$
+^\.agents$
+^\.codex$
 ^LICENSE\.md$
 ^\.github$
 ^README\.Rmd$
@@ -12,5 +15,7 @@
 ^Meta$
 ^cran-comments\.md$
 ^paper$
+^submission$
+^tmp$
 ^statnnet_[0-9.]+\.tar\.gz$
 ^statnnet\.Rcheck$

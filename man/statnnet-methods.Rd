@@ -41,10 +41,13 @@ documented.}
 \item{level}{Confidence level for individual-weight intervals and pointwise
 effect intervals. Curve intervals are not simultaneous confidence bands.}
 
-\item{effects}{Effect summaries to include. \code{"rowwise"} (the default)
-computes fast average predictive finite differences over the observed
-covariate rows. \code{"partial"} computes the more expensive average
-partial-dependence contrasts used by \code{\link[=pce]{pce()}}, and \code{"none"} omits effects.}
+\item{effects}{Effect estimand to include. \code{"rowwise"} (the default) computes
+the average observed-row predictive finite difference by changing the focal
+predictor within each observed covariate row and then averaging. \code{"partial"}
+computes the average partial-dependence finite-difference contrast used by
+\code{\link[=pce]{pce()}}, which additionally averages over the observed focal-predictor
+values. These estimands generally differ when the fitted response contains
+interactions. \code{"none"} omits effect summaries.}
 }
 \description{
 Methods for statnnet objects

@@ -13,8 +13,9 @@ Description: Adds regression-style statistical summaries to small,
     single-hidden-layer neural networks fitted with 'nnet'. The package
     validates the fitted model, reconstructs its objective and curvature,
     estimates a penalised sandwich covariance matrix, provides individual and
-    grouped Wald-type diagnostics, and computes partial covariate effects with
-    uncertainty. It retains the original fit and does not fit or select neural
+    grouped Wald-type diagnostics, fast average observed-row predictive finite
+    differences, and partial-dependence covariate effects with uncertainty. It
+    retains the original fit and does not fit or select neural
     networks. Methods follow McInerney and Burke (2023)
     <doi:10.48550/arXiv.2311.08139>.
 License: GPL (>= 3) + file LICENSE

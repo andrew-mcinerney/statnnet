@@ -11,12 +11,12 @@ make_gaussian_data <- function(n = 100L) {
   data
 }
 
-fit_gaussian <- function(data, decay = 0.1, Hess = TRUE) {
+fit_gaussian <- function(data, decay = 0.1, Hess = TRUE, size = 1L) {
   set.seed(4102)
   nnet::nnet(
     y ~ x1 + x2 + f,
     data = data,
-    size = 1,
+    size = size,
     linout = TRUE,
     decay = decay,
     Hess = Hess,
@@ -38,12 +38,12 @@ make_binary_data <- function(n = 120L) {
   )
 }
 
-fit_binary <- function(data, decay = 0.1, Hess = TRUE) {
+fit_binary <- function(data, decay = 0.1, Hess = TRUE, size = 1L) {
   set.seed(4104)
   nnet::nnet(
     y ~ x + f,
     data = data,
-    size = 1,
+    size = size,
     decay = decay,
     Hess = Hess,
     maxit = 1000,
