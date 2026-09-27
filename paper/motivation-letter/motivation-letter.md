@@ -14,27 +14,28 @@ The R Journal
 
 Dear Editors,
 
-Please consider our article, "statnnet: Regression-Style Statistical Summaries
+Please consider our article, "statnnet: Statistical Selection and Interpretation
 for Neural Networks Fitted with nnet", for publication in *The R Journal*.
 
-The article presents the `statnnet` package, which augments a deliberately
-restricted class of fitted `nnet` models with statistical information that is
-not supplied by the fitting package itself. The package reconstructs the fitted
-objective and curvature, reports individual- and covariate-level Wald
-summaries, distinguishes observed-row predictive finite differences from
-partial-dependence contrasts, supplies pointwise uncertainty intervals, and
-provides diagnostic, plotting, and prediction methods through a familiar R
-modelling interface.
+The article presents the `statnnet` package, which supplies a coherent workflow
+for selecting and interpreting a deliberately restricted class of shallow
+neural networks fitted with `nnet`. The package selects input terms and
+hidden-layer size using an information criterion, retains the evaluated
+candidate path and convergence diagnostics, reconstructs the fitted objective
+and curvature, and provides covariate-level Wald summaries, predictive
+finite-difference effects, partial-dependence contrasts, diagnostic plots, and
+prediction methods through a familiar R modelling interface.
 
 We believe the article is relevant to R Journal readers because `nnet` remains
 a widely used and stable R implementation of shallow neural networks, while
 its standard output is primarily directed toward fitting and prediction. The
 contribution of `statnnet` is intentionally narrower than a general neural-
-network interpretation framework: it uses the exact parameter ordering,
-objective, Hessian, convergence information, and fitted object produced by
-`nnet`. The article places this contribution in context with model-agnostic
-tools and with `NeuralNetTools`, `NeuralSens`, and `cito`, and states clearly
-where their estimands and inferential mechanisms differ.
+network framework: selection and interpretation use `nnet` as the sole fitting
+engine and preserve its exact parameter ordering, objective, Hessian,
+convergence information, and fitted object. The article demonstrates the
+complete workflow using the open Auto MPG data, places the contribution in
+context with model-agnostic tools and neural-network packages, and states
+clearly where their estimands and inferential mechanisms differ.
 
 The manuscript and its examples are fully reproducible from the supplied R
 Markdown source, scripts, and package data. The package source, tests,

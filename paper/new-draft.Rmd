@@ -1,20 +1,8 @@
 ---
-title: "statnnet: Regression-Style Statistical Summaries for Neural Networks Fitted with nnet"
-date: "2026-05-15"
+title: "statnnet: Statistical Selection and Interpretation for Neural Networks Fitted using nnet"
+date: "2026-09-25"
 abstract: >
-  The nnet package provides a stable and widely used implementation of
-  single-hidden-layer feedforward neural networks in R, but its output is primarily
-  concerned with fitting and prediction. The statnnet package extends fitted nnet
-  objects with regression-style statistical summaries for small,
-  parsimonious networks. It provides Wald-type summaries for individual weights and
-  groups of input weights, fast average observed-row predictive finite-difference
-  summaries, partial-dependence covariate-effect plots and contrasts with uncertainty
-  estimates, and diagnostic information concerning optimisation and covariance estimation. The
-  scope is deliberately restricted to supported models fitted using nnet;
-  the package is not intended to provide general-purpose inference for deep or
-  otherwise highly parameterised neural networks. This paper describes the
-  statistical quantities computed by statnnet, explains the package design and
-  its limitations, and demonstrates the workflow using an applied regression example.
+  The \pkg{nnet} package provides a long-established implementation of single-hidden-layer feedforward neural networks in R, but its standard workflow is primarily concerned with model fitting and prediction. The \pkg{statnnet} package extends supported \pkg{nnet} models with a statistical workflow for small, parsimonious networks. It provides information-criterion selection of input terms and hidden-layer size, approximate covariance estimation, Wald-type summaries for individual and grouped network weights, finite-difference covariate-effect summaries, partial covariate-effect plots and contrasts with uncertainty estimates, and diagnostics for model selection, optimisation, and covariance estimation. These quantities are integrated through familiar R interfaces including \code{summary()}, \code{anova()}, \code{coef()}, \code{vcov()}, \code{predict()}, and \code{plot()}. This paper describes the statistical quantities implemented by \pkg{statnnet}, its software design and limitations, and demonstrates the resulting workflow through an applied regression example.
 author:  
   - name: Andrew McInerney
     affiliation: University of Limerick
@@ -37,10 +25,10 @@ packages:
     - pdp
     - iml
     - DALEX
-    - vip
     - NeuralNetTools
     - NeuralSens
     - cito
+    - torch
   bioc: []
 CTV: []
 output: 
@@ -66,29 +54,48 @@ knitr::opts_chunk$set(
 # Introduction
 
 Feedforward neural networks (FNNs) are flexible non-linear models that are widely used for prediction and function approximation [@lecun2015deep].
-However, from a statistical perspective, they can also be viewed as nonlinear regression models, in which a vector of inputs is mapped to a conditional mean of a response through a sequence of weighted linear combinations and non-linear activation functions.
-In R, the \CRANpkg{nnet} package [@nnet] provides a long-established implementation for fitting single-hidden-layer FNNs, with optional skip-layer connections and weight decay.
-An object returned by \code{nnet()} contains the fitted weights, fitted values, residuals, objective value, and convergence code, and can also contain a Hessian matrix.
-However, the standard output is primarily concerned with fitting and prediction and does not provide covariate-level standard errors, Wald-type summaries, analysis-of-variance-style tables, or covariate-effect summaries.
+Although commonly associated with machine learning and artificial intelligence, they can also be viewed as non-linear regression models in which a vector of covariates is mapped to a conditional mean through weighted linear combinations and non-linear activation functions.
+This statistical perspective is particularly relevant for tabular data, where relatively small neural networks remain common in applied work.
+In a systematic review of empirical comparisons between neural networks and generalised additive models (GAMs), @doohan2026comparison identified 143 papers analysing 430 real-world tabular datasets.
+Among the datasets for which network depth was reported, 70\% used a single hidden layer and a further 22\% used two hidden layers, indicating that shallow architectures continue to account for a substantial proportion of applied neural-network analyses.
+The review found no consistent predictive superiority of either neural networks or GAMs across the most frequently reported performance measures, while noting that GAMs retain an important advantage in interpretability.
 
-This creates a practical obstacle for statisticians who wish to use shallow FNNs as statistical modelling tools rather than only as predictive algorithms.
-In a classical regression workflow, a fitted model can be inspected using familiar functions such as `summary()`, `anova()`, `predict()`, and `plot()`.
-These functions help answer two questions that naturally arise when modelling the relationship between a response and a set of covariates: whether a covariate appears to contribute to the fitted model, and how the fitted response changes with that covariate.
-For a fitted FNN, answering these questions typically requires the user to extract weights manually, reconstruct the model matrix, compute approximate covariance matrices, write custom code for grouped summaries, or use model-agnostic interpretability tools.
-Model-agnostic approaches, such as Shapley values [@strumbelj2010efficient] and locally interpretable model explanations (LIME) [@ribeiro2016lime], are useful for explaining fitted predictions across a wide range of model classes.
-However, they treat the fitted network as a black box and do not exploit the particular parameterisation of a shallow neural network as a non-linear regression model.
-The aim of \pkg{statnnet} is to add these model-based, regression-style summaries to a precisely defined subset of models fitted using \CRANpkg{nnet}.
-Restricting the package to one fitting engine avoids treating materially different neural-network implementations as interchangeable and allows the parameter ordering, activation functions, objective, convergence information, and Hessian calculations used by \CRANpkg{nnet} to be handled explicitly.
+These findings motivate attention not only to the predictive performance of shallow neural networks, but also to the statistical workflow available for analysing them.
+Flexible statistical models such as GAMs are accompanied by established tools for examining model terms, covariate effects, and uncertainty.
+Neural-network implementations, by contrast, have traditionally placed greater emphasis on fitting and prediction.
+This distinction is particularly relevant when relatively parsimonious networks are used as flexible non-linear regression models rather than as components of large-scale deep-learning systems.
+In such settings, prediction can be complemented by statistical summaries that help describe which covariates contribute to the fitted model, how the fitted response changes with those covariates, and whether the numerical properties of the fitted model support uncertainty-based interpretation.
 
-The statistical methodology underlying \pkg{statnnet} was developed in @mcinerney2023feedforward, which treats suitably parsimonious shallow FNNs as statistical models, derives Wald-type tests for individual weights and covariate-level groups of weights, and introduces partial covariate-effect (PCE) plots as neural-network analogues of regression coefficients.
-The aim of the present paper is to describe the corresponding R implementation and to show how these summaries can be obtained through a workflow that will be familiar to users of standard R modelling functions.
-The \pkg{statnnet} package is a statistical-summary extension to \CRANpkg{nnet}: it does not introduce a separate neural-network optimiser or attempt to provide a common representation for several fitting frameworks.
-Instead, it takes a supported fitted \code{"nnet"} object and constructs a \code{"statnnet"} object containing the additional information required for covariance estimation, grouped Wald-type summaries, PCE plots, and diagnostic checks.
-The resulting object can be inspected using S3 methods for printing, summaries, analysis-of-variance-style tables, plotting, and prediction.
+In R, the \CRANpkg{nnet} package [@nnet] provides a long-established implementation of single-hidden-layer FNNs, with optional skip-layer connections and weight decay.
+An object returned by \code{nnet()} contains fitted weights, fitted values, residuals, an objective value, and convergence information, and can also contain a Hessian matrix.
+Although \CRANpkg{nnet} provides established functionality for model fitting and prediction, it does not directly provide covariate-level statistical summaries, grouped tests of model terms, covariate-effect estimates with uncertainty, or diagnostics designed to assess the suitability of covariance-based interpretation.
+Obtaining such quantities typically requires users to extract and reorganise network weights, reconstruct model matrices, calculate approximate covariance matrices, or combine several separate interpretation tools.
+This is the practical gap addressed by \pkg{statnnet}.
 
-By augmenting the established \code{"nnet"} workflow with a consistent set of S3 methods, \pkg{statnnet} makes supported shallow FNNs behave more like standard statistical model objects in R.
+A wide range of model-agnostic methods is available for explaining fitted prediction functions, including Shapley-value approaches [@strumbelj2010efficient], locally interpretable model explanations (LIME) [@ribeiro2016lime], partial dependence, and related methods.
+These approaches are valuable because they can be applied across many classes of predictive models, but their objective differs from treating a fitted FNN explicitly as a statistical model.
+For a suitably small FNN, the model parameterisation, fitting objective, and local curvature can themselves be informative: they permit parameter covariance to be approximated, groups of network parameters associated with an original covariate to be considered jointly, and uncertainty to be propagated to function-scale summaries.
+Model-agnostic explanation and model-specific statistical interpretation are therefore complementary rather than competing approaches.
+
+The \pkg{statnnet} package is designed to provide the latter for a deliberately defined class of models fitted using \CRANpkg{nnet}.
+Rather than introducing another neural-network optimiser or attempting to provide a common interface across deep-learning frameworks, \pkg{statnnet} builds directly on an established R fitting engine whose parameter ordering, activation functions, optimisation objective, convergence information, and Hessian calculations can be handled explicitly.
+The restriction to parsimonious single-hidden-layer networks is therefore a design choice rather than an attempt to provide inference for arbitrary neural-network architectures.
+Such networks remain common in tabular applications, and their relatively small parameterisations make regression-style statistical analysis practically meaningful.
+The objective of \pkg{statnnet} is not to turn arbitrary neural networks into classical regression models, but to provide a statistically informed regression-style workflow for the shallow networks for which such an analysis is appropriate.
+
+The package integrates several components of this workflow.
+The \code{select\_nnet()} function provides information-criterion selection of input terms and hidden-layer size for the supported Gaussian setting.
+A selected or independently fitted \code{nnet} object can then be augmented by \code{statnnet()}, which validates the fitted model and provides approximate covariance estimation, Wald-type summaries for individual parameters and groups of input weights, covariate-level summaries for multi-column factors, finite-difference covariate-effect summaries, partial covariate-effect (PCE) plots and contrasts with uncertainty, prediction, network visualisation, and diagnostic information.
+These quantities are exposed through familiar R interfaces including \code{summary()}, \code{anova()}, \code{coef()}, \code{vcov()}, \code{plot()}, and \code{predict()}.
+An important part of this workflow is diagnostic rather than inferential: \pkg{statnnet} checks convergence, architecture, and the numerical behaviour of the information matrix before covariance-based summaries are reported, and distinguishes numerical computability from evidence that the associated reference distributions are well calibrated.
+
+The statistical methodology implemented in the package was developed separately.
+@mcinerney2025selection introduced the information-criterion procedure for selecting input terms and hidden-layer size, while @mcinerney2023feedforward developed the Wald-type summaries, covariance approximation, and partial covariate-effect methodology.
+The contribution of the present paper is therefore principally software and workflow: it brings these methods together in an R implementation, extends them to a coherent model-object interface, handles formula terms and categorical covariates at their original covariate level, provides diagnostic safeguards, and makes supported \code{nnet} models accessible through an analysis workflow familiar from conventional statistical modelling.
+Existing R packages provide complementary tools for neural-network visualisation, sensitivity analysis, and model-agnostic interpretation; Section \ref{sec:software} considers these packages in detail and clarifies the distinct role of \pkg{statnnet}.
+
 The paper is organised as follows.
-Section \ref{sec:fnn-background} introduces the FNN parameterisation and the statistical quantities used by \pkg{statnnet}.
+Section \ref{sec:fnn-background} introduces the FNN parameterisation, selection criterion, and statistical quantities used by \pkg{statnnet}.
 Section \ref{sec:software} positions the package relative to existing neural-network fitting and model-interpretability packages.
 Section \ref{sec:using-statnnet} demonstrates the package workflow using an applied regression example.
 Section \ref{sec:methods} summarises the supported model objects and S3 methods.
@@ -164,12 +171,38 @@ $$
   J_\delta^{-1}J_0J_\delta^{-1},
 $$
 as described in @mcinerney2023feedforward.
+Here, "sandwich" refers to the curvature-based adjustment for penalisation in this expression.
+The middle matrix $J_0$ is the unpenalised observed-information approximation rather than an empirical outer product of observation-level scores, so the result is not a heteroskedasticity-robust covariance estimator.
+The calculation treats the observed design as fixed and uses independent homoskedastic Gaussian errors for continuous responses or independent Bernoulli responses for binary fits.
 When \code{decay = 0}, this reduces to the inverse observed-information approximation.
 The package checks the numerical behaviour of $J_\delta$ before computing the inverse.
 
 The fitted parameter vector and covariance matrix are used to construct the Wald-type summaries and PCE plots described below.
 These quantities are conditional on the fitted architecture, value of \code{decay}, and local solution.
 They are not post-selection summaries and do not account for uncertainty arising from choosing the architecture, penalty, or initialisation.
+Crucially, numerical invertibility of $J_\delta$ establishes only that the covariance approximation can be computed; it does not establish that Wald reference distributions or delta-method coverage are well calibrated.
+The p-values and intervals reported by \pkg{statnnet} are therefore approximate and are empirically supported only under the simulation regimes studied in @mcinerney2023feedforward.
+
+## Model selection
+
+For continuous responses, \code{select\_nnet()} implements the procedure developed in @mcinerney2025selection.
+Candidate models are unpenalised single-hidden-layer Gaussian networks, and each candidate is fitted from several random initialisations.
+For a candidate with $K$ network weights, let $\hat\theta$ denote the best converged fit found across the specified initialisations.
+The Gaussian log-likelihood evaluated at this retained fit includes the estimate $\hat\sigma^2=n^{-1}\sum_i\{y_i-\mathrm{NN}(x_i,\hat\theta)\}^2$, and the default comparison criterion is
+$$
+  \mathrm{BIC}=-2\ell(\hat\theta,\hat\sigma^2)+\log(n)(K+1),
+$$
+where the additional parameter is the residual variance.
+The search first compares hidden-layer sizes, then removes input terms while BIC improves, and finally alternates local hidden-layer and input changes to fine-tune the selected architecture.
+Only converged candidate fits are eligible for selection, and the returned \code{"statnnet\_selection"} object records the candidate path and start-level convergence diagnostics.
+Because the fitting objective is non-convex, the retained fit is the best solution found rather than a guaranteed global likelihood maximum.
+The alternating search is likewise path-dependent and does not exhaustively establish the global minimum BIC over all possible architectures.
+The package therefore uses BIC as the comparison criterion defined by the published selection procedure; its usual regular-model marginal-likelihood interpretation is not automatic for neural networks with equivalent or redundant parameterisations.
+For formula inputs, all model-matrix columns generated by the same term are selected together; for matrix inputs, each column is a selectable input.
+The current formula interface supports main-effect terms only: interactions are rejected rather than searched or partially removed.
+
+The selection procedure is currently restricted to Gaussian responses and \code{decay = 0}, matching the published method.
+Binary-response and penalised models may still be supplied directly to \code{statnnet()} for conditional interpretation, but they are not currently selected by \code{select\_nnet()}.
 
 
 ## Wald-type summaries
@@ -208,12 +241,17 @@ $$
   \mathrm{tr}(S_j A S_j^T),
 $$
 which is approximately $q$ when \code{decay} is small.
-It provides an input-level summary that is closer in spirit to testing whether a covariate contributes to the fitted model.
+It provides a parameter-based input-level summary.
+The null is specifically that all input-to-hidden weights for the covariate are zero.
+This condition is sufficient to exclude dependence through that input, but it is not necessary for functional invariance: non-zero input weights can have little or no effect on the fitted response when outgoing weights are zero, hidden units are saturated, or contributions cancel.
+The grouped Wald summary should therefore be interpreted together with the function-scale effect summaries below.
 
 For categorical covariates represented by several dummy variables, \pkg{statnnet} extends this idea by testing all associated input nodes jointly.
 For example, if a categorical covariate with $l+1$ levels is represented using $l$ dummy variables, and the network has $q$ hidden nodes, the corresponding grouped test involves $lq$ input-to-hidden weights.
 Using the corresponding $lq\times K$ selection matrix in the expression above gives effective degrees of freedom that are approximately $lq$ when \code{decay} is small.
 This gives an analysis-of-variance-style summary for categorical predictors, allowing the user to assess the contribution of the original covariate rather than each dummy variable separately.
+The \code{anova()} method reports separate grouped Wald tests within the retained fit.
+It does not perform sequential analysis of variance, likelihood-ratio testing, or model comparison, and its term-wise p-values are not adjusted for multiple testing.
 
 
 ## Covariate-effect estimands
@@ -230,8 +268,8 @@ For covariate $j$, the partial dependence function is estimated as $$
   =
   \frac{1}{n}
   \sum_{i=1}^n
-  \mathrm{NN}(x_i^{(j)}, \hat{\theta}),
-$$ where $x_i^{(j)}$ denotes the covariate vector for observation $i$ with the $j$th covariate set to the value $x^{(j)}$.
+  \mathrm{NN}(x_i^{(j,x^{(j)})}, \hat{\theta}),
+$$ where $x_i^{(j,a)}$ denotes the covariate vector for observation $i$ with coordinate $j$ set to $a$; hence, $x_i^{(j,x^{(j)})}$ has the $j$th covariate set to the displayed value $x^{(j)}$.
 
 The PCE is a finite-difference version of this quantity.
 For a $d$-unit increase in covariate $j$, the PCE is defined as $$
@@ -245,7 +283,7 @@ The value of $d$ can be chosen by the user; common choices are $d = 1$ or $d$ eq
 
 For binary covariates, the PCE corresponds to the average change in the fitted response when the covariate changes from 0 to 1.
 For continuous covariates, plotting $\hat{\beta}(x^{(j)}, d)$ over a sequence of values shows how the covariate effect varies across the covariate range.
-When the PCE is approximately constant, the fitted relationship is approximately linear in that covariate; when it varies substantially, the fitted model suggests a non-linear effect.
+When the PCE is approximately constant, the partial-dependence function is approximately linear over the displayed covariate range; substantial variation indicates a non-linear average effect on that scale.
 
 Uncertainty intervals for the PCE can be computed using the approximate sampling distribution of $\hat{\theta}$.
 For the delta method, the gradient of the PCE with respect to $\hat{\theta}$ is used: $$
@@ -254,9 +292,9 @@ For the delta method, the gradient of the PCE with respect to $\hat{\theta}$ is 
  \frac{1}{n}
  \sum_{i=1}^n
  \left[
-   \nabla_{\hat{\theta}}\mathrm{NN}(x_i^{(j)} + d, \hat{\theta})
+   \nabla_{\hat{\theta}}\mathrm{NN}(x_i^{(j,x^{(j)}+d)}, \hat{\theta})
    -
-   \nabla_{\hat{\theta}}\mathrm{NN}(x_i^{(j)}, \hat{\theta})
+   \nabla_{\hat{\theta}}\mathrm{NN}(x_i^{(j,x^{(j)})}, \hat{\theta})
  \right].
 $$ Hence, $$
   \widehat{\mathrm{Var}}\big(\hat{\beta}(x^{(j)}, d)\big)
@@ -267,7 +305,8 @@ $$ Hence, $$
 $$ This gives an analytic approximation to the variance, and, therefore, the standard error of the PCE at each plotted covariate value.
 The corresponding normal-approximation intervals are pointwise intervals, not simultaneous confidence bands over the complete curve.
 Alternatively, pointwise percentile intervals can be obtained by simulating parameter vectors from the approximate sampling distribution of $\hat{\theta}$ and recomputing the PCE for each simulated set of parameters as in @mandel2013simulation.
-Both forms of interval are conditional on the selected architecture, value of \code{decay}, local solution, and approximate parameter covariance.
+Both forms of interval are conditional on the selected architecture, value of \code{decay}, local solution, approximate parameter covariance, empirical covariate rows, finite-difference step, and any centring or scaling constants.
+They propagate uncertainty in $\hat\theta$ while treating the observed design and preprocessing quantities as fixed; they therefore do not include sampling variation in the empirical covariate distribution or define full intervals for a population-average effect.
 
 ### Scalar partial-dependence and observed-row effects
 
@@ -306,7 +345,7 @@ Together, the Wald-type summaries and these effect estimands provide the two pie
 The role of \pkg{statnnet} is most clearly understood in relation to \CRANpkg{nnet} itself.
 The \code{nnet()} function fits single-hidden-layer neural networks using the BFGS algorithm and provides methods for prediction, together with access to the fitted weights, residuals, objective value, convergence code, and Hessian.
 These quantities provide the computational basis for further statistical summaries, but \CRANpkg{nnet} does not itself provide covariate-level Wald-type summaries or PCE plots with uncertainty estimates.
-The purpose of \pkg{statnnet} is to supply this additional layer for supported \code{"nnet"} objects.
+The purpose of \pkg{statnnet} is to supply model-selection and interpretation layers for supported \code{"nnet"} models.
 
 This close dependence on \CRANpkg{nnet} is a deliberate design choice.
 The package does not attempt to translate objects from several neural-network frameworks into a common representation, and it does not claim that the same covariance calculations are appropriate for arbitrary architectures or fitting objectives.
@@ -314,7 +353,7 @@ Instead, the supported parameterisation, activation functions, weight ordering, 
 This narrower interface makes it possible to validate the required model information and to issue warnings when a fitted network lies outside the intended statistical setting.
 
 Model-agnostic interpretability packages provide an important first comparison.
-\CRANpkg{pdp} computes partial-dependence and individual-conditional-expectation curves for many fitted model classes [@pdp], while \CRANpkg{iml} [@iml], \CRANpkg{DALEX} [@DALEX], and \CRANpkg{vip} [@vip] provide broader collections of partial dependence, accumulated local effects, variable importance, surrogate models, or Shapley-value explanations.
+\CRANpkg{pdp} computes partial-dependence and individual-conditional-expectation curves for many fitted model classes [@pdp], while \CRANpkg{iml} [@iml], \CRANpkg{DALEX} [@DALEX], and the archived \pkg{vip} package [@vip] provide broader collections of partial dependence, accumulated local effects, variable importance, surrogate models, or Shapley-value explanations.
 These tools are valuable because they compare prediction functions across many model classes, but they are not designed around the likelihood, weight ordering, and curvature of a particular \code{"nnet"} fit.
 
 Two packages are closer in their explicit support for neural-network objects.
@@ -324,8 +363,8 @@ These packages provide useful complementary descriptions of network structure, i
 Their primary targets differ from the finite-difference partial-dependence and observed-row estimands in \pkg{statnnet}, and they do not reconstruct the \CRANpkg{nnet} likelihood curvature to obtain the grouped parameter Wald summaries used here.
 
 \CRANpkg{cito} is the closest comparison in terms of regression-like effect output.
-It fits separate \pkg{torch}-based neural networks and reports permutation importance, average conditional effects, partial-dependence and accumulated-local-effect plots; bootstrap refits can provide intervals and p-values [@amesoeder2024cito].
-Thus, \pkg{cito} has broader architecture and fitting ambitions, whereas \pkg{statnnet} is a post-fit extension for an existing \code{"nnet"} object and uses an analytic covariance approximation without refitting.
+It fits separate \CRANpkg{torch}-based neural networks and reports permutation importance, average conditional effects, partial-dependence and accumulated-local-effect plots; bootstrap refits can provide intervals and p-values [@amesoeder2024cito].
+Thus, \CRANpkg{cito} has broader architecture and fitting ambitions, whereas \pkg{statnnet} is restricted to \code{nnet}, provides information-criterion selection for its supported Gaussian setting, and uses an analytic covariance approximation for interpretation without bootstrap refitting.
 The approaches are complementary rather than interchangeable because they operate on different fitted model classes and use different inferential mechanisms.
 
 Table \ref{tab:software-comparison-table} summarises the closest comparisons.
@@ -334,14 +373,14 @@ Table \ref{tab:software-comparison-table} summarises the closest comparisons.
 software_comparison <- data.frame(
   Package = c("statnnet", "pdp", "NeuralNetTools", "NeuralSens", "cito"),
   `Fit or interface` = c(
-    "Existing `nnet` fit.",
+    "Selects or accepts an `nnet` fit.",
     "Many model classes.",
     "`nnet` and other NNs.",
     "`nnet` and other MLPs.",
     "Own `torch` fits."
   ),
   `Primary output` = c(
-    "Row/PD effects; analytic grouped Wald.",
+    "IC selection; row/PD effects; grouped Wald.",
     "PD and ICE curves.",
     "Plots, weight importance, Lek profiles.",
     "Input-derivative sensitivities.",
@@ -357,427 +396,368 @@ knitr::kable(
 )
 ```
 
-The calls below show how the packages target different quantities for the same fitted \code{"nnet"} object; they are deliberately not presented as numerically equivalent estimators.
-An evaluated same-fit comparison with \CRANpkg{pdp} is reported in Section \ref{sec:pdp-agreement}.
-
-```{r software-side-by-side, echo = TRUE, eval = FALSE}
-# statnnet: scalar observed-row effect and scalar PD contrast
-rowwise_effects <- summary(snn, effects = "rowwise")$pce
-partial_bmi <- pce(
-  snn, variable = "bmi", type = "average", uncertainty = "none"
-)
-
-# pdp: the PD response curve rather than its finite difference
-pdp_bmi <- pdp::partial(
-  nn, pred.var = "bmi", train = insurance_analysis, plot = FALSE
-)
-
-# NeuralNetTools: connection-weight importance
-weight_importance <- NeuralNetTools::olden(nn)
-
-# NeuralSens: derivatives of the fitted response with respect to inputs
-input_sensitivity <- NeuralSens::SensAnalysisMLP(
-  nn, trData = insurance_analysis, plot = FALSE
-)
-```
-
-\CRANpkg{cito} does not consume the fitted \code{"nnet"} object, so an analogous call starts by fitting a separate model with \code{cito::dnn()} and obtains its average conditional effects and importance through \code{summary()}.
-Consequently, a numerical comparison with \pkg{cito} would conflate differences in estimand with differences in optimiser, regularisation, architecture, and fitted solution.
-
-## Direct comparison with `nnet`
-
-The contribution of \pkg{statnnet} is most visible by comparing the information available before and after a fitted \code{"nnet"} object is augmented.
-The native \code{summary()} method prints the network dimensions, fitting options, and fitted connection weights.
-It does not change the fitted model, but it also does not provide a covariance matrix, covariate-level tests, or effect summaries.
-After conversion, \pkg{statnnet} retains the original fit and adds the statistical quantities shown in Table \ref{tab:nnet-comparison-table}.
-
-```{r nnet-comparison-table, echo = FALSE, results = "asis"}
-nnet_comparison <- data.frame(
-  Task = c(
-    "Model fitting",
-    "Default summary",
-    "Parameter covariance",
-    "Covariate-level assessment",
-    "Covariate-effect description",
-    "Numerical diagnostics",
-    "Prediction"
-  ),
-  `nnet` = c(
-    "Fits by BFGS.",
-    "Architecture and connection weights.",
-    "Not generally supplied.",
-    "Not provided.",
-    "Not provided.",
-    "Convergence; optional Hessian.",
-    "Provided by `predict.nnet()`."
-  ),
-  `statnnet` = c(
-    "Retains the fit; no refitting.",
-    "Effects and grouped Wald summaries.",
-    "Penalised sandwich estimate.",
-    "Grouped Wald summaries.",
-    "Rowwise effects and PD plots.",
-    "Adds covariance checks.",
-    "Delegates to the retained fit."
-  ),
-  check.names = FALSE
-)
-
-knitr::kable(
-  nnet_comparison,
-  caption = "Information available from a native \\CRANpkg{nnet} fit and after augmentation by \\pkg{statnnet}.",
-  escape = FALSE
-)
-```
+Unlike \pkg{statnnet}, the comparison packages do not combine information-criterion selection of an \code{"nnet"} architecture with diagnostics and conditional regression-style summaries for the retained fit.
+\CRANpkg{cito} fits a separate model, while the other packages describe different aspects of an existing prediction function.
+The approaches are therefore complementary rather than numerically interchangeable.
 
 # Using statnnet {#sec:using-statnnet}
 
-We now demonstrate the main workflow in \pkg{statnnet} using the insurance data considered in @mcinerney2023feedforward.
-This section is intended to show the package as it would typically be used: a parsimonious, single-hidden-layer FNN is fitted using \CRANpkg{nnet}, augmented as an object of class \code{"statnnet"}, and then inspected using familiar statistical modelling functions.
-The aim is not to repeat the full applied analysis from @mcinerney2023feedforward, but to show how the package moves from a fitted neural network to regression-style summaries, covariate-level tests, PCE plots, network visualisations, and predictions.
+We demonstrate the complete \pkg{statnnet} workflow using the Auto MPG data from the UCI Machine Learning Repository [@quinlan1993autompg].
+This example makes model selection the entry point to the analysis: \code{select\_nnet()} chooses the input terms and hidden-layer size, the selected fit is checked before covariance-based interpretation, and \code{statnnet()} supplies regression-style summaries and covariate-effect plots.
+The information criterion selects an unpenalised model, whereas a subsequent, explicitly reported sensitivity analysis is used to obtain a better-conditioned fit of the selected structure.
+The results below were generated with \pkg{statnnet} version `r as.character(packageVersion("statnnet"))`; the reproduction bundle records the complete R session information.
 
-The main function is \code{statnnet()}, which takes a fitted \code{"nnet"} object and constructs the additional quantities required for statistical summaries:
+## Data and preprocessing
 
-```{r statnnet-call, echo = TRUE, eval = FALSE}
-statnnet(object, formula, data, ...)
-```
+The source data contain fuel economy and vehicle characteristics for 398 cars.
+Following the dataset documentation, six observations with missing horsepower are omitted, leaving 392 complete cases.
+The car-name identifier is not retained.
+The data are distributed by UCI under the Creative Commons Attribution 4.0 International licence.
 
-The resulting object retains the fitted \code{"nnet"} model and stores the model matrix, response, likelihood information, covariance estimates, Wald-type summaries, covariate-effect estimates, and diagnostic quantities required by the package methods.
-Model fitting remains the responsibility of \CRANpkg{nnet}; \pkg{statnnet} supplies a statistical-summary layer for the supported fitted object.
-
-The current implementation is deliberately restricted to parsimonious single-hidden-layer FNNs fitted to tabular data, with continuous or binary response variables.
-The model is treated as a likelihood-based non-linear regression model, with a Gaussian likelihood for continuous responses and a Bernoulli likelihood for binary responses.
-Input variables may be continuous, binary, or categorical, with categorical variables represented through the corresponding dummy variables in the model matrix.
-The package does not support deep architectures, multiple hidden layers, or fitted objects produced by other neural-network packages.
-
-## Data
-
-The data contain information on $n = 1338$ insurance beneficiaries.
-The response variable, \code{charges}, is the total medical expenses charged to an insurance plan.
-The explanatory variables are the beneficiary's age, sex, body mass index, number of children covered by the plan, smoking status, and region of residence.
-The version of the data included in \pkg{statnnet} is already centred, scaled, and dummy encoded, so the factor variables initially appear as binary input columns.
-
-```{r example-data, echo = TRUE}
+```{r auto-mpg-data, echo = TRUE}
 library(statnnet)
 library(nnet)
 
-data("insurance", package = "statnnet")
+data("auto_mpg", package = "statnnet")
 
-names(insurance)
-head(insurance[, c("age", "sexmale", "bmi", "children", "smokeryes", "charges")])
+str(auto_mpg)
 ```
 
-To demonstrate the package's factor grouping, we reconstruct the original region factor from its mutually exclusive indicator columns and remove those columns before fitting.
-The resulting model matrix is unchanged apart from retaining the mapping of its three region columns to one formula term.
+Cylinder count and geographic origin are factors, so \code{select\_nnet()} removes or retains all model-matrix columns associated with either term as a group.
+The continuous predictors and response are standardised before fitting.
+Reported effects and predictions are converted back to miles per gallon where appropriate.
 
-```{r example-region-factor, echo = FALSE}
-insurance_analysis <- insurance
-insurance_analysis$region <- factor(
-  ifelse(
-    insurance$regionnorthwest == 1,
-    "northwest",
-    ifelse(
-      insurance$regionsoutheast == 1,
-      "southeast",
-      ifelse(insurance$regionsouthwest == 1, "southwest", "northeast")
-    )
-  ),
-  levels = c("northeast", "northwest", "southeast", "southwest")
+```{r auto-mpg-preprocess, echo = TRUE}
+continuous_predictors <- c(
+  "displacement", "horsepower", "weight",
+  "acceleration", "model_year"
 )
-insurance_analysis[c(
-  "regionnorthwest", "regionsoutheast", "regionsouthwest"
-)] <- NULL
+predictor_center <- vapply(
+  auto_mpg[continuous_predictors], mean, numeric(1)
+)
+predictor_scale <- vapply(
+  auto_mpg[continuous_predictors], sd, numeric(1)
+)
+response_center <- mean(auto_mpg$mpg)
+response_scale <- sd(auto_mpg$mpg)
+
+auto_mpg_analysis <- auto_mpg
+auto_mpg_analysis[continuous_predictors] <- Map(
+  function(x, center, scale) (x - center) / scale,
+  auto_mpg[continuous_predictors],
+  predictor_center,
+  predictor_scale
+)
+auto_mpg_analysis$mpg <- (
+  auto_mpg$mpg - response_center
+) / response_scale
+
+auto_mpg_formula <- mpg ~ cylinders + displacement + horsepower +
+  weight + acceleration + model_year + origin
 ```
 
-For this example, we model \code{charges} using all available covariates:
+## Selecting the network
 
-```{r example-formula, echo = TRUE}
-insurance_formula <- charges ~ .
+The search compares hidden-layer sizes, removes formula terms while BIC improves, and then fine-tunes the input and hidden layers.
+Each candidate is fitted from 20 pseudo-random initialisations generated under a fixed seed.
+
+```{r auto-mpg-selection, echo = TRUE}
+selection <- select_nnet(
+  auto_mpg_formula,
+  data = auto_mpg_analysis,
+  max_size = 4,
+  n_starts = 20,
+  criterion = "BIC",
+  maxit = 3000,
+  seed = 20260920,
+  progress = FALSE
+)
+
+selection
 ```
 
-The variables include continuous covariates, such as \code{age} and \code{bmi}; binary indicator covariates, such as \code{sexmale} and \code{smokeryes}; and the reconstructed \code{region} factor.
-The example therefore illustrates both input-level summaries and joint term-level summaries when a categorical covariate expands to several model-matrix columns.
+The selected model has two hidden units and retains displacement, horsepower, weight, acceleration, and model year.
+Cylinder count and origin are removed as complete factor terms, and all 500 candidate starts report convergence code zero.
+The evaluated candidate path is retained rather than reducing selection to only the final model.
+Across repeated renders, the serial search took approximately 10--15 seconds on the Windows x86-64 session recorded in the reproduction bundle; this timing is hardware-specific.
+For a fixed candidate path, computational work grows approximately linearly with \code{n\_starts}, while increasing \code{max\_size} raises both the number of fitted weights and the cost of each optimisation; additional terms can also lengthen the data-dependent search path.
+For longer searches, \code{progress = TRUE} prints candidate-level progress, and the returned path and start-level diagnostics should be retained rather than increasing \code{n\_starts} without inspection.
 
-## Fitting the neural network
+```{r auto-mpg-selection-path, echo = TRUE}
+path <- selection_path(selection)
 
-We first fit a single-hidden-layer FNN using \code{nnet()}.
-Since the objective is non-convex, we use several random initialisations and retain the converged fit with the smallest fitted objective value:
+path[path$selected, c(
+  "phase", "candidate", "included_terms",
+  "size", "criterion_value", "converged_starts"
+)]
+```
 
-```{r example-fit, echo = TRUE}
-set.seed(1237019)
+The selected architecture and terms are conditional on the candidate sizes, criterion, start distribution, number of starts, and seed.
+The path and start-level diagnostics should therefore be retained when reporting the analysis.
 
-nnet_fits <- replicate(
-  10,
-  nnet(
-    insurance_formula,
-    data = insurance_analysis,
-    size = 2,
-    linout = TRUE,
-    decay = 0.01,
-    maxit = 1000,
-    Hess = TRUE,
-    trace = FALSE
-  ),
+## Checking and refitting the selected structure
+
+Calling \code{statnnet()} on the selection result applies the same validation used for an independently fitted \code{"nnet"} object.
+The selected unpenalised network has an available covariance matrix but triggers the conditioning warning.
+Its reciprocal information condition number is approximately \(1.75\times 10^{-10}\), so convergence alone is not sufficient justification for interpreting covariance-based summaries.
+
+```{r auto-mpg-selected-diagnostics, echo = TRUE}
+selected_model <- suppressWarnings(
+  statnnet(selection, objective_tol = 1e-4)
+)
+
+selected_model
+```
+
+The selected terms and hidden-layer size are held fixed while the same structure is refitted over a short decay grid.
+This is a diagnostic sensitivity analysis, not an extension of the BIC selection procedure.
+At each positive decay value, the selected weights and 19 pseudo-random starts generated under a fixed seed are considered, and the converged fit with the smallest penalised objective is retained.
+
+```{r auto-mpg-decay, echo = FALSE}
+set.seed(20260920)
+
+n_weights <- length(selection$fit$wts)
+random_starts <- replicate(
+  19,
+  runif(n_weights, min = -3, max = 3),
   simplify = FALSE
 )
+start_weights <- c(list(selection$fit$wts), random_starts)
+decay_grid <- c(0, 0.001, 0.01, 0.02, 0.05, 0.1)
 
-converged <- vapply(nnet_fits, function(fit) fit$convergence == 0, logical(1))
-stopifnot(any(converged))
+fit_selected_structure <- function(decay) {
+  if (decay == 0) {
+    fits <- list(selection$fit)
+  } else {
+    fits <- lapply(start_weights, function(wts) {
+      nnet(
+        selection$formula,
+        data = auto_mpg_analysis,
+        size = selection$size,
+        linout = TRUE,
+        decay = decay,
+        Wts = wts,
+        maxit = 3000,
+        Hess = TRUE,
+        trace = FALSE
+      )
+    })
+  }
 
-objective <- vapply(nnet_fits, function(fit) fit$value, numeric(1))
-objective[!converged] <- Inf
-nn <- nnet_fits[[which.min(objective)]]
-```
+  converged <- vapply(
+    fits,
+    function(fit) fit$convergence == 0,
+    logical(1)
+  )
+  objective <- vapply(fits, function(fit) fit$value, numeric(1))
+  objective[!converged] <- Inf
+  best_fit <- fits[[which.min(objective)]]
+  model <- suppressWarnings(
+    statnnet(
+      best_fit,
+      formula = selection$formula,
+      data = auto_mpg_analysis,
+      response = "continuous",
+      objective_tol = 1e-4
+    )
+  )
+  fitted_mpg <- response_center +
+    response_scale * as.numeric(fitted(best_fit))
 
-The fitted model has two hidden nodes and uses the \CRANpkg{nnet} weight-decay argument with \code{decay = 0.01}.
-The convergence check prevents a fit that reached the iteration limit from being selected solely because of its objective value.
-The statistical summaries below are conditional on the retained architecture, penalty, and local solution; they do not account for the choice among initialisations.
+  list(
+    fit = best_fit,
+    model = model,
+    summary = data.frame(
+      decay = decay,
+      rmse_mpg = sqrt(mean((auto_mpg$mpg - fitted_mpg)^2)),
+      information_rcond = model$diagnostics$information_rcond,
+      conditioning_warning =
+        model$diagnostics$information_rcond <
+          sqrt(model$covariance_tol)
+    )
+  )
+}
 
-## Native `nnet` summary
+decay_fits <- lapply(decay_grid, fit_selected_structure)
+decay_summary <- do.call(
+  rbind,
+  lapply(decay_fits, function(result) result$summary)
+)
+decay_display <- decay_summary
+decay_display$information_rcond <- formatC(
+  decay_display$information_rcond,
+  format = "e",
+  digits = 2
+)
 
-Before applying \pkg{statnnet}, the native summary displays the fitted architecture, fitting options, and connection weights:
-
-```{r example-native-summary, echo = TRUE, results = "hide"}
-summary(nn)
-```
-
-This output is useful for checking the model structure, but the individual connection weights do not directly describe the overall contribution or effect of a covariate.
-The following sections show the additional statistical information obtained from the same fitted model.
-
-## Creating a `"statnnet"` object
-
-The object \code{nn} is a fitted \code{"nnet"} object.
-It can be augmented with the model information required by \pkg{statnnet}:
-
-```{r example-create-statnnet, echo = TRUE}
-snn <- statnnet(
-  object = nn,
-  formula = insurance_formula,
-  data = insurance_analysis,
-  response = "continuous"
+knitr::kable(
+  decay_display,
+  digits = c(3, 3, 3, 0),
+  col.names = c(
+    "Decay", "Training RMSE (MPG)",
+    "Reciprocal condition number", "Conditioning warning"
+  ),
+  caption = paste(
+    "Conditioning sensitivity for the selected two-hidden-unit",
+    "Auto MPG architecture."
+  ),
+  position = "h!"
 )
 ```
 
-The fitted \code{"nnet"} object does not always retain all of the information required to reconstruct the statistical model, so the original formula and training data are supplied explicitly.
-The constructor checks the fitted architecture, response type, convergence code, dimensions of the reconstructed model matrix, and availability of the quantities required for covariance estimation.
+A decay of 0.02 is the first value in this grid that removes the package's conditioning warning.
+It increases training RMSE modestly relative to the unpenalised selected fit.
+The value is not described as selected by BIC; it is an explicitly reported stabilising refit used for the conditional summaries below.
 
-The resulting object retains the original \code{"nnet"} fit and the model information required by the statistical methods, including the reconstructed model matrix, response, weight-decay value, covariance estimate, grouped Wald-type summaries, observed-row and partial-dependence effect calculations, and numerical diagnostics.
-These components are normally accessed through the methods below rather than directly.
+```{r auto-mpg-final-model, echo = TRUE}
+chosen_index <- which(!decay_summary$conditioning_warning)[1]
+regularized_fit <- decay_fits[[chosen_index]]$fit
+snn <- decay_fits[[chosen_index]]$model
 
-## Printing the fitted network
-
-The \code{print()} method gives a compact overview of the fitted FNN:
-
-```{r example-print, echo = TRUE}
-print(snn)
+snn
 ```
 
-The printed output reports the model call, response type, number of observations, number of input nodes, number of hidden nodes, and the value of the ridge penalty.
-This gives a quick check that the fitted network has the intended architecture before the statistical summaries are examined.
+## Interpreting the selected model
 
-## Regression-style summary
+The default summary reports average observed-row predictive finite differences and grouped Wald-type summaries.
+For a one-standard-deviation change in each retained predictor, the following table converts the response changes, standard errors, and pointwise confidence intervals back to miles per gallon.
 
-The \code{summary()} method gives the main regression-style summary produced by \pkg{statnnet}.
-To avoid duplicating the grouped Wald table displayed in the following section, we show its effect component here:
+```{r auto-mpg-summary, echo = FALSE, results = "asis"}
+effect_summary <- summary(snn)$pce
+effect_summary$estimate_mpg <- (
+  response_scale * effect_summary$estimate
+)
+effect_summary$std_error_mpg <- (
+  response_scale * effect_summary$std_error
+)
+effect_summary$conf_low_mpg <- (
+  response_scale * effect_summary$conf_low
+)
+effect_summary$conf_high_mpg <- (
+  response_scale * effect_summary$conf_high
+)
 
-```{r example-summary, echo = TRUE}
-snn_summary <- summary(snn)
-snn_summary$pce
+knitr::kable(
+  effect_summary[c(
+    "variable", "estimate_mpg", "std_error_mpg",
+    "conf_low_mpg", "conf_high_mpg"
+  )],
+  format = "pipe",
+  digits = 3,
+  col.names = c(
+    "Predictor", "Estimate (MPG)", "SE (MPG)",
+    "95% lower", "95% upper"
+  ),
+  caption = paste(
+    "Average fitted MPG changes for one-standard-deviation",
+    "increases in the retained predictors, with conditional pointwise 95%",
+    "delta-method confidence intervals."
+  )
+)
 ```
 
-The first table reports $\hat{\tau}^{\mathrm{row}}_j$, the average observed-row predictive finite-difference effects defined in Section \ref{sec:fnn-background}, with pointwise standard errors and intervals when covariance estimation is available.
-For factors it reports one contrast for each non-reference level.
-The separate grouped Wald table tests all model-matrix columns belonging to each formula term jointly.
-Thus, the summary provides two pieces of information that are commonly sought in regression modelling: descriptive effect estimates and a test of whether a term appears to contribute to the fitted model.
+These are summaries of the fitted response function, not causal effects.
+In particular, displacement, horsepower, and weight are strongly correlated, so their conditional descriptions should not be read as effects of interventions.
+The grouped summaries use the familiar \code{anova()} interface:
 
-For example, in the insurance data, variables such as \code{age}, \code{bmi}, \code{children}, and \code{smokeryes} are expected to contribute strongly to the fitted response.
-The summary output allows these effects to be inspected in a form that is closer to a classical regression summary than to the raw weight output usually obtained from neural-network software.
-
-The default is therefore explicitly a rowwise estimand, not an average partial-dependence effect.
-The more computationally intensive $\hat{\tau}^{\mathrm{PD}}_j$ effects defined in Section \ref{sec:fnn-background} can be requested explicitly:
-
-```{r example-summary-partial, echo = TRUE, eval = FALSE}
-summary(snn, effects = "partial")
-```
-
-Single-parameter summaries for individual neural-network weights can also be displayed:
-
-```{r example-summary-single, echo = TRUE, results = "hide"}
-summary(snn, weights = TRUE)
-```
-
-These individual-weight summaries are mainly diagnostic.
-For interpretation, the covariate-level summaries and the PCE plots are usually more informative than individual input-to-hidden-layer weights.
-
-## Analysis-of-variance-style summary
-
-The \code{anova()} method provides covariate-level Wald-type summaries:
-
-```{r example-anova, echo = TRUE}
+```{r auto-mpg-anova, echo = TRUE}
 anova(snn)
 ```
 
-For continuous and binary covariates, this corresponds to testing the group of weights connecting the covariate to the hidden layer.
-For categorical covariates represented by multiple dummy variables, such as region, the method tests all associated input nodes jointly.
-This gives a summary that is analogous in spirit to an analysis-of-variance table, where the contribution of the original covariate is assessed rather than the contribution of each dummy variable separately.
+The reference distributions remain conditional on the selected structure, decay value, and retained local optimum.
+They do not account for model-selection uncertainty.
 
-This is particularly useful when interpreting factor variables.
-For example, rather than separately inspecting the dummy variables corresponding to different regions, the \code{anova()} method gives a single covariate-level summary for region as a whole.
+The fitted architecture is displayed using \code{plot\_network()}.
 
-## Network visualisation
-
-The fitted architecture can be visualised using \code{plotnn()}:
-
-```{r example-plotnn, echo = TRUE, fig.width = 6.5, fig.height = 4.2, out.width = "72%", fig.cap = "Fitted neural-network architecture for the insurance data. The diagram shows the input nodes, hidden nodes, output node, and fitted connections; annotations are suppressed here to keep the dense diagram legible.", fig.alt = "A neural-network architecture diagram with eight input nodes, two hidden nodes, one output node, and directed connections between layers."}
-plotnn(snn, annotate = "none")
+```{r auto-mpg-network, echo = TRUE, fig.width = 6.5, fig.height = 4.6, out.width = "88%", fig.pos = "h!", fig.cap = "Regularised refit of the selected Auto MPG architecture. The fitted network has five retained inputs, two hidden units, and one linear output; edge annotations are suppressed to emphasise the selected structure.", fig.alt = "A neural-network diagram with five input nodes, two hidden nodes, and one output node."}
+network_par <- par(cex = 1.18)
+plot_network(snn, annotate = "none")
+par(network_par)
 ```
 
-The plot displays the input nodes, hidden nodes, output node, and fitted connections.
-By default, input-to-hidden edges are annotated with their fitted weight estimates.
-Individual-weight Wald p-values can be displayed instead using `annotate = "p_value"`; edges whose p-values are below \code{alpha} are highlighted.
-These edge-level annotations are diagnostic, while \code{anova()} provides the intended term-level summaries.
+A PCE curve describes how a finite change in one predictor alters the average fitted response while the remaining predictors are averaged over their observed rows.
+For vehicle weight, the default step is one observed standard deviation on the fitted scale.
 
-The p-value annotation and significance threshold can be selected using:
-
-```{r example-plotnn-alpha, echo = TRUE, fig.show = "hide"}
-plotnn(snn, annotate = "p_value", alpha = 0.01)
-```
-
-## Partial covariate-effect plots
-
-The \code{plot()} method produces PCE plots.
-For a continuous covariate such as \code{bmi}, the PCE plot shows how the estimated effect of a $d$-unit increase in BMI varies across the observed BMI range.
-The default grid is restricted so that both the baseline value and its $d$-unit comparison remain within the observed univariate range.
-
-```{r example-pce-bmi, echo = TRUE, fig.width = 6.5, fig.height = 4, out.width = "72%", fig.cap = "Partial covariate-effect plot for body mass index in the insurance data. The plot shows the estimated change in fitted charges associated with a change in standardised body mass index over the observed covariate range.", fig.alt = "A partial covariate-effect plot for body mass index, with body mass index on the horizontal axis and the estimated covariate effect on the vertical axis."}
-plot(snn, variable = "bmi", uncertainty = "none")
-```
-
-## Numerical agreement with `pdp` {#sec:pdp-agreement}
-
-The comparison below checks the PCE calculation against an independently computed partial-dependence curve for the same fitted \code{"nnet"} object.
-We evaluate the partial dependence at two BMI values separated by one sample standard deviation and take their finite difference.
-Because both calculations average predictions over the same empirical covariate rows, they target the same quantity and should agree up to numerical precision.
-
-```{r pdp-agreement-table, echo = FALSE, results = "asis"}
-comparison_value <- 0
-comparison_step <- sd(insurance_analysis$bmi)
-
-statnnet_bmi <- pce(
-  snn,
-  variable = "bmi",
-  values = comparison_value,
-  d = comparison_step,
-  uncertainty = "none"
+```{r auto-mpg-pce, echo = TRUE, fig.width = 6.5, fig.height = 4, out.width = "72%", fig.pos = "h!", fig.cap = "Partial covariate-effect curve for standardised vehicle weight in the selected and regularised Auto MPG model. The horizontal axis is in standard deviations of vehicle weight and the vertical axis is in MPG. Dashed lines are pointwise delta-method intervals conditional on the selected structure, decay value, and local optimum.", fig.alt = "A curve showing the fitted partial covariate effect of standardised vehicle weight in miles per gallon, with upper and lower pointwise intervals."}
+weight_pce <- pce(
+  snn, variable = "weight", uncertainty = "delta"
 )
+weight_pce$estimate_mpg <- response_scale * weight_pce$estimate
+weight_pce$conf_low_mpg <- response_scale * weight_pce$conf_low
+weight_pce$conf_high_mpg <- response_scale * weight_pce$conf_high
 
-pdp_bmi <- pdp::partial(
-  nn,
-  pred.var = "bmi",
-  pred.grid = data.frame(
-    bmi = c(comparison_value, comparison_value + comparison_step)
-  ),
-  train = insurance_analysis,
-  plot = FALSE
-)
-
-pdp_difference <- diff(pdp_bmi$yhat)
-pdp_agreement <- data.frame(
-  Method = c("statnnet PCE", "finite difference of pdp PD"),
-  Estimate = c(statnnet_bmi$estimate, pdp_difference)
-)
-pdp_agreement$`Absolute difference from statnnet` <-
-  abs(pdp_agreement$Estimate - statnnet_bmi$estimate)
-
-knitr::kable(
-  pdp_agreement,
-  digits = 8
-)
-```
-
-If the PCE is approximately constant, the fitted model suggests an approximately linear effect for that covariate.
-If the PCE varies across the covariate range, the fitted model suggests a non-linear effect.
-This is one of the main advantages of the PCE plot: it gives an effect-size interpretation while still allowing the fitted neural network to represent non-linear relationships.
-
-For binary covariates, the PCE corresponds to the average change in fitted response when the covariate changes from 0 to 1.
-For example, the effect of smoking status can be visualised using
-
-```{r example-pce-smoker, echo = TRUE, fig.show = "hide"}
-plot(snn, variable = "smokeryes", uncertainty = "none")
-```
-
-Several covariates can be plotted at once:
-
-```{r example-pce-multiple, echo = TRUE, fig.show = "hide"}
 plot(
-  snn,
-  variable = c("age", "bmi", "children", "smokeryes"),
-  uncertainty = "none"
+  weight_pce$value,
+  weight_pce$estimate_mpg,
+  type = "l",
+  ylim = range(weight_pce[c("conf_low_mpg", "conf_high_mpg")]),
+  xlab = "Standardised vehicle weight",
+  ylab = "Partial covariate effect (MPG)"
 )
+lines(weight_pce$value, weight_pce$conf_low_mpg, lty = 2)
+lines(weight_pce$value, weight_pce$conf_high_mpg, lty = 2)
 ```
 
-The uncertainty intervals are computed using the approximate sampling distribution of the fitted parameters.
-The uncertainty calculation is selected using the \code{uncertainty} argument.
-For example, the delta-method intervals are obtained using:
+The retained fit also supports prediction.
+Because the response was standardised before fitting, predictions are converted back to MPG.
 
-```{r example-pce-delta, echo = TRUE, fig.width = 6.5, fig.height = 4, out.width = "72%"}
-plot(
-  snn,
-  variable = "age",
-  uncertainty = "delta"
-)
-```
-
-Alternatively, simulation from the approximate sampling distribution of the fitted parameters can be used:
-
-```{r example-pce-sim, echo = TRUE, eval = FALSE}
-plot(
-  snn,
-  variable = "age",
-  uncertainty = "simulation"
-)
-```
-
-## Visualising interactions
-
-Because FNNs can represent interactions between covariates, it can also be useful to examine whether a PCE changes across the values of another covariate.
-For example, the effect of \code{bmi} can be plotted separately for different smoking-status groups when the fitted object and plotting method support grouped PCE displays:
-
-```{r example-pce-interaction, echo = TRUE, fig.width = 6.5, fig.height = 4, out.width = "72%"}
-plot(
-  snn,
-  variable = "bmi",
-  by = "smokeryes",
-  uncertainty = "delta"
-)
-```
-
-If the resulting PCE curves differ substantially between the two smoking-status groups, this suggests that the fitted network has captured an interaction between \code{bmi} and \code{smokeryes}.
-This type of plot is exploratory, but it is useful for communicating how the fitted neural network changes across different regions of the covariate space.
-
-## Prediction
-
-The \code{predict()} method returns fitted values for the training data when no new data are supplied:
-
-```{r example-predict-training, echo = TRUE}
-fitted_values <- predict(snn)
-
-head(fitted_values)
-```
-
-Predictions for new observations can be obtained using the \code{newdata} argument:
-
-```{r example-predict-newdata, echo = TRUE}
-new_insurance <- insurance_analysis[
+```{r auto-mpg-prediction, echo = TRUE}
+new_auto_mpg <- auto_mpg_analysis[
   1:5,
-  setdiff(names(insurance_analysis), "charges")
+  setdiff(names(auto_mpg_analysis), "mpg")
 ]
+predicted_mpg <- response_center +
+  response_scale * predict(snn, newdata = new_auto_mpg)
 
-predict(snn, newdata = new_insurance)
+data.frame(
+  observed_mpg = auto_mpg$mpg[1:5],
+  predicted_mpg = as.numeric(predicted_mpg)
+)
 ```
 
-This preserves a prediction interface for \code{"statnnet"} objects that is consistent with the underlying \code{"nnet"} fit.
-The same object can therefore be used both for interpretation and prediction.
+This workflow keeps the package roles explicit:
+\code{select\_nnet()} selects an unpenalised Gaussian architecture and terms, diagnostics determine whether the covariance calculation is numerically available, and \code{statnnet()} supplies conditional summaries for the retained fit.
+These diagnostics do not determine whether the resulting inferential quantities are calibrated.
+
+## Binary responses and grouped factors
+
+Binary-response models are augmented directly rather than selected by \code{select\_nnet()}.
+The following compact example creates a two-level response for illustration, retains the three-level \code{origin} factor in the fitted model, and then tests its two model-matrix columns jointly.
+
+```{r auto-mpg-binary, echo = TRUE}
+binary_data <- auto_mpg
+binary_data$weight <- as.numeric(scale(binary_data$weight))
+binary_data$mpg_high <- factor(
+  ifelse(
+    binary_data$mpg > median(binary_data$mpg),
+    "high", "low"
+  ),
+  levels = c("low", "high")
+)
+
+set.seed(20260921)
+binary_fit <- nnet(
+  mpg_high ~ weight + origin,
+  data = binary_data,
+  size = 1,
+  decay = 0.05,
+  Hess = TRUE,
+  maxit = 3000,
+  trace = FALSE
+)
+binary_model <- statnnet(
+  binary_fit,
+  data = binary_data,
+  response = "binary"
+)
+
+anova(binary_model)
+```
+
+The \code{origin} row is therefore a grouped two-degree-of-freedom summary rather than two unrelated dummy-variable tests.
+The simulation evidence cited in this paper concerns continuous Gaussian responses; no binary-response calibration study is supplied here.
+Accordingly, the binary Wald p-values and intervals should be treated as exploratory.
+As elsewhere, the reference distribution is conditional on the fitted architecture, decay value, and retained local optimum, and the constructed response is solely a software illustration.
 
 # Supported objects and methods {#sec:methods}
 
@@ -788,10 +768,15 @@ This section records the supported-model contract and user-facing methods; the c
 \pkg{statnnet} supports single-hidden-layer \code{"nnet"} models fitted to tabular data.
 Continuous responses require a linear output and are treated as Gaussian non-linear regression models; binary responses require a single logistic output with entropy fitting and are treated as Bernoulli regression models.
 Skip-layer connections, softmax or censored outputs, multiple output nodes, and objects fitted by other neural-network packages are outside this scope.
+Here, support means that the package can validate the fitted object and compute the documented quantities; it is not a guarantee of inferential calibration.
 
 Inputs may be continuous, binary, or categorical.
 When the original formula and data are supplied, the mapping from the model-matrix columns to the original covariates is retained so that all dummy variables associated with a factor can be summarised jointly.
 The original \code{"nnet"} fit is also retained, allowing prediction to be delegated to \code{predict.nnet()}.
+The \code{select\_nnet()} search is restricted to main-effect formulas and does not support interaction terms; a supported interaction model fitted directly by \code{nnet()} may still be augmented conditionally by \code{statnnet()}.
+For covariance-based interpretation, the empirical results in @mcinerney2023feedforward favour parsimonious architectures and motivate keeping the hidden layer no larger than the fitted input layer.
+The package records the hidden-to-input ratio and warns when the number of hidden nodes exceeds the number of fitted input nodes.
+Satisfying this rule removes one identified risk but does not by itself establish calibration.
 
 ## Requirements and diagnostic checks
 
@@ -801,50 +786,67 @@ The constructor checks the architecture, response type, convergence code, and ag
 
 Before computing covariance-based summaries, the package checks the \CRANpkg{nnet} convergence code and the availability and numerical behaviour of the Hessian.
 If the penalised curvature is effectively singular or cannot be inverted reliably, the affected covariance-based summaries are not reported.
-These checks do not establish every regularity condition, but they prevent clearly unsuitable fits from being summarised without notice.
+These checks prevent clearly unsuitable numerical calculations from being reported without notice, but they do not test the accuracy of the chi-squared or normal reference approximations.
+For binary responses, the diagnostics additionally note that frequentist calibration has not been established by the package authors.
 
 ## User-facing functions and methods
 
 The main user-facing functions and methods are summarised in Table \ref{tab:statnnet-methods-table}.
-Together, these functions add statistical summaries to a fitted \code{"nnet"} object while preserving the established fitting and prediction workflow.
+Together, these functions select or augment a fitted \code{"nnet"} model while preserving the established optimisation and prediction engine.
+
+\newpage
 
 ```{r statnnet-methods-table, echo = FALSE, results = "asis"}
 knitr::kable(
   data.frame(
     Function = c(
-      "`statnnet()`",
-      "`print()`",
-      "`summary()`",
-      "`anova()`",
-      "`vcov()`",
-      "`plot()`",
-      "`plotnn()`",
-      "`predict()`"
+      "select_nnet()",
+      "selection_path()",
+      "statnnet()",
+      "print()",
+      "summary()",
+      "anova()",
+      "coef()",
+      "vcov()",
+      "pce()",
+      "plot()",
+      "plot_network()",
+      "predict()"
     ),
     Purpose = c(
-      "Validates and augments an `nnet` fit.",
+      "Selects input terms and hidden-layer size.",
+      "Returns the evaluated candidate-model path.",
+      "Validates and augments an `nnet` fit or selection.",
       "Prints architecture and diagnostics.",
       "Reports effects and grouped Wald summaries.",
       "Reports grouped Wald summaries.",
+      "Returns named fitted network weights.",
       "Returns the covariance estimate.",
+      "Computes finite-difference covariate effects.",
       "Plots PCEs and pointwise intervals.",
       "Draws an annotated network.",
       "Delegates prediction to the retained fit."
     )
   ),
+  format = "pipe",
   caption = "Main user-facing functions and methods in statnnet.",
   escape = TRUE
 )
 ```
 
-\CRANpkg{nnet} therefore remains responsible for fitting and prediction, while \code{statnnet()} and the \code{"statnnet"} methods provide the additional statistical summaries and visualisations.
+\CRANpkg{nnet} therefore remains responsible for optimisation and prediction, while \code{select\_nnet()}, \code{statnnet()}, and their methods provide model selection, statistical summaries, diagnostics, and visualisations.
 
 # Practical guidance and limitations {#sec:limitations}
 
 The covariance-based summaries are intended for small, parsimonious networks whose fitted parameters are locally well identified.
 Increasing the hidden-layer size can improve flexibility, but it also increases the number of weights and the likelihood of redundant hidden nodes or near-singular curvature.
-The \code{decay} value can improve numerical stability and is incorporated into the covariance calculation exactly as described in Section \ref{sec:fnn-background}; both the hidden-layer size and \code{decay} should therefore be reported and examined in sensitivity analyses.
-Convergence of \code{nnet()} alone is insufficient: the covariance diagnostics should also be checked before interpreting standard errors, Wald-type statistics, or uncertainty intervals.
+More importantly, the continuous-response simulations in @mcinerney2023feedforward show that Wald tests can be severely anti-conservative for over-sized architectures even when penalisation makes covariance estimation numerically feasible.
+Those results motivate keeping the hidden layer no larger than the fitted input layer and using a modest positive \code{decay}; the package emits an architecture warning when the first recommendation is violated.
+The \code{decay} value is incorporated into the covariance calculation exactly as described in Section \ref{sec:fnn-background}; both the hidden-layer size and \code{decay} should therefore be reported and examined in sensitivity analyses.
+
+Convergence of \code{nnet()} and a numerically invertible information matrix are necessary computational checks, not sufficient evidence of calibrated inference.
+Wald p-values and delta-method intervals are approximate and should be interpreted only in relation to the data-generating settings, sample sizes, architectures, and penalties studied empirically.
+The calibration studies cited here concern continuous Gaussian responses, so binary-response p-values and intervals are exploratory unless supported by a separate validation study for the application at hand.
 
 The fitting objective is non-convex, so different initial values can lead to different local solutions.
 Using several initialisations reduces the risk of reporting a poor solution, but does not account for the uncertainty introduced by selecting among them.
@@ -876,14 +878,14 @@ The package makes fitted shallow FNNs more interpretable, but the quality of the
 
 # Conclusion {#sec:conclusion}
 
-The \pkg{statnnet} package provides a statistical-summary layer for supported single-hidden-layer neural networks fitted using \CRANpkg{nnet}.
-Rather than introducing a new optimiser or a common interface for several neural-network frameworks, the package augments a fitted \code{"nnet"} object with the information required for regression-style summaries, diagnostic checks, and covariate-effect visualisations.
+The \pkg{statnnet} package provides statistical selection and interpretation for supported single-hidden-layer neural networks fitted using \CRANpkg{nnet}.
+Rather than introducing a new optimiser or a common interface for several neural-network frameworks, the package coordinates \code{nnet()} candidate fits during information-criterion selection and augments a selected or independently fitted \code{"nnet"} object with the information required for regression-style summaries, diagnostic checks, and covariate-effect visualisations.
 In this way, \pkg{statnnet} makes a deliberately restricted class of shallow neural networks behave more like standard statistical model objects in R.
 
-The package implements regression-style summaries, Wald-type summaries for individual weights and groups of weights, analysis-of-variance-style summaries for covariates, average observed-row predictive finite differences, partial-dependence PCE plots and contrasts with uncertainty estimates, architecture diagrams annotated with statistical summaries, and prediction methods for new observations.
+The package implements information-criterion selection of input terms and hidden-layer size, regression-style summaries, Wald-type summaries for individual weights and groups of weights, analysis-of-variance-style summaries for covariates, average observed-row predictive finite differences, partial-dependence PCE plots and contrasts with uncertainty estimates, architecture diagrams annotated with statistical summaries, and prediction methods for new observations.
 These tools complement \CRANpkg{nnet} by providing outputs that are more familiar to users of classical regression models.
 
-The statistical methodology underlying these summaries is developed in @mcinerney2023feedforward.
+The statistical methodology underlying selection is developed in @mcinerney2025selection, and the methodology underlying the interpretability summaries is developed in @mcinerney2023feedforward.
 The contribution of the present article is to describe the corresponding R implementation and demonstrate how the methodology can be used in practice through a coherent package workflow.
 By combining the flexibility of a parsimonious single-hidden-layer network with regression-style output, \pkg{statnnet} provides a practical interface for statisticians who wish to use supported \code{"nnet"} models as statistical modelling tools rather than purely predictive algorithms.
 

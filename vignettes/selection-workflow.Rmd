@@ -1,0 +1,142 @@
+---
+title: "Selecting and interpreting a shallow neural network"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Selecting and interpreting a shallow neural network}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+The primary `statnnet` workflow selects a parsimonious network before
+constructing regression-style summaries. This vignette uses the bundled Auto
+MPG data and keeps the selection settings deliberately small so that it can be
+rebuilt quickly during package checks.
+
+```{r setup, message = FALSE}
+library(nnet)
+library(statnnet)
+
+data("auto_mpg", package = "statnnet")
+
+analysis_data <- auto_mpg
+continuous_variables <- c(
+  "mpg", "displacement", "horsepower", "weight", "acceleration",
+  "model_year"
+)
+analysis_data[continuous_variables] <- scale(
+  analysis_data[continuous_variables]
+)
+```
+
+## Select inputs and hidden-layer size
+
+`select_nnet()` alternates between hidden-layer and input selection using an
+information criterion. Formula terms are selected as groups, so the indicator
+columns for a factor enter or leave together. Multiple starting values are
+used for every candidate model; only converged starts are eligible for
+selection.
+
+```{r select}
+selection <- select_nnet(
+  mpg ~ cylinders + displacement + horsepower + weight + acceleration +
+    model_year + origin,
+  data = analysis_data,
+  max_size = 2,
+  n_starts = 3,
+  criterion = "BIC",
+  maxit = 1000,
+  seed = 2026,
+  progress = FALSE
+)
+
+selection
+summary(selection)
+```
+
+The complete evaluated path remains available for auditing or plotting.
+
+```{r path, fig.alt = "BIC values for the candidate neural-network models evaluated during selection."}
+head(selection_path(selection))
+plot(selection)
+```
+
+## Separate numerical diagnostics from calibration
+
+Converting the result directly with `statnnet()` validates the selected native
+`nnet` fit and reports whether covariance-based summaries are numerically
+available. The selection itself is unpenalised; a converged fit can still have
+poorly conditioned curvature.
+
+Numerical availability is a computational diagnostic, not evidence that Wald
+p-values or delta-method intervals have their nominal frequentist coverage.
+The Gaussian-response simulations motivating the interface favour
+parsimonious networks, including a hidden layer no larger than the fitted input
+layer. `statnnet()` records this comparison and warns when there are more
+hidden nodes than input nodes. The reported inferential quantities remain
+approximate and are empirically supported only under the regimes studied.
+
+The package can calculate the same summaries for supported binary-response
+fits, but the package authors have not established their frequentist
+calibration; binary Wald tests and intervals should therefore be treated as
+exploratory.
+
+```{r diagnose}
+selected_model <- suppressWarnings(statnnet(selection))
+selected_model
+```
+
+Here we refit the selected architecture with a small, pre-specified decay to
+demonstrate the inferential interface. This decay value is not selected by
+BIC. In an analysis it should be justified and examined in a sensitivity
+analysis, while the resulting uncertainty remains conditional on the selected
+structure, penalty, and local optimum.
+
+```{r refit}
+regularised_fit <- nnet(
+  selection$formula,
+  data = analysis_data,
+  size = selection$size,
+  linout = TRUE,
+  decay = 0.02,
+  Hess = TRUE,
+  Wts = selection$fit$wts,
+  maxit = 1000,
+  trace = FALSE
+)
+
+model <- statnnet(
+  regularised_fit,
+  data = analysis_data,
+  response = "continuous"
+)
+
+model
+summary(model, effects = "none")
+anova(model)
+```
+
+## Describe the fitted response surface
+
+`pce()` calculates finite differences of the partial-dependence function.
+These are descriptive summaries of the fitted network rather than causal
+effects, and their pointwise intervals are conditional on the modelling
+choices above.
+
+```{r pce}
+pce(model, "weight", length_out = 5)
+```
+
+```{r pce-plot, fig.alt = "Partial covariate-effect curve for standardized vehicle weight in the selected Auto MPG network."}
+plot(model, "weight", length_out = 25)
+```
+
+The selected model retains the original `nnet` fit, so ordinary predictions
+remain available through `predict()`.
+
+```{r predict}
+head(predict(model, newdata = analysis_data))
+```

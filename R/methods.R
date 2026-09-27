@@ -14,6 +14,30 @@
 #'   [pce()], which additionally averages over the observed focal-predictor
 #'   values. These estimands generally differ when the fitted response contains
 #'   interactions. `"none"` omits effect summaries.
+#' @examples
+#' data("auto_mpg", package = "statnnet")
+#' example_data <- auto_mpg
+#' example_data$mpg <- as.numeric(scale(example_data$mpg))
+#' example_data$weight <- as.numeric(scale(example_data$weight))
+#' set.seed(3)
+#' fit <- nnet::nnet(
+#'   mpg ~ weight + origin,
+#'   data = example_data,
+#'   size = 1,
+#'   linout = TRUE,
+#'   decay = 0.1,
+#'   Hess = TRUE,
+#'   maxit = 500,
+#'   trace = FALSE
+#' )
+#' model <- statnnet(fit, data = example_data, response = "continuous")
+#'
+#' model
+#' summary(model, effects = "none")
+#' anova(model)
+#' coef(model)
+#' vcov(model)
+#' head(predict(model))
 #' @name statnnet-methods
 NULL
 
@@ -33,6 +57,15 @@ print.statnnet <- function(x, ...) {
     )
   )
   cat(sprintf("Response: %s; decay: %g\n", x$response, x$decay))
+  if (!is.null(x$selection)) {
+    cat(
+      sprintf(
+        "Selection: %s = %.3f; uncertainty is conditional on the selected model\n",
+        x$selection$criterion,
+        x$selection$criterion_value
+      )
+    )
+  }
   cat(sprintf("nnet convergence code: %d\n", x$diagnostics$convergence))
   if (isTRUE(x$diagnostics$covariance_available)) {
     cat(
@@ -44,6 +77,7 @@ print.statnnet <- function(x, ...) {
   } else {
     cat("Covariance: unavailable - ", x$diagnostics$covariance_reason, "\n", sep = "")
   }
+  .print_calibration_notes(x$diagnostics)
   invisible(x)
 }
 
@@ -75,7 +109,11 @@ predict.statnnet <- function(object, newdata, ...) {
   if (missing(newdata)) {
     return(stats::predict(object$fit, ...))
   }
-  stats::predict(object$fit, newdata = newdata, ...)
+  if (!is.null(object$fit$terms)) {
+    return(stats::predict(object$fit, newdata = newdata, ...))
+  }
+  x <- .build_model_matrix(object, newdata)
+  stats::predict(object$fit, newdata = x, ...)
 }
 
 #' @rdname statnnet-methods
@@ -150,7 +188,12 @@ anova.statnnet <- function(object, ...) {
 #' @export
 print.anova.statnnet <- function(x, ...) {
   cat(attr(x, "heading"), "\n", sep = "")
-  print.data.frame(x, row.names = FALSE, ...)
+  display <- x
+  if ("status" %in% names(display) &&
+      length(display$status) && all(display$status == "ok")) {
+    display$status <- NULL
+  }
+  print.data.frame(display, row.names = FALSE, ...)
   invisible(x)
 }
 
@@ -201,6 +244,7 @@ summary.statnnet <- function(object, weights = FALSE, level = 0.95,
     architecture = object$architecture,
     objective = object$objective,
     diagnostics = object$diagnostics,
+    selection = object$selection,
     effects = effects,
     pce = pce_table,
     grouped_wald = stats::anova(object),
@@ -223,9 +267,19 @@ print.summary.statnnet <- function(x, ...) {
       x$architecture$outputs
     )
   )
+  if (!is.null(x$selection)) {
+    cat(
+      sprintf(
+        "Selected using %s (%.3f); uncertainty is conditional on the selected model\n",
+        x$selection$criterion,
+        x$selection$criterion_value
+      )
+    )
+  }
   if (!isTRUE(x$diagnostics$covariance_available)) {
     cat("Uncertainty unavailable: ", x$diagnostics$covariance_reason, "\n", sep = "")
   }
+  .print_calibration_notes(x$diagnostics)
   if (identical(x$effects, "rowwise")) {
     cat("\nAverage observed-row predictive finite-difference effects\n")
     print.data.frame(x$pce, row.names = FALSE)
@@ -242,4 +296,29 @@ print.summary.statnnet <- function(x, ...) {
     print.data.frame(x$parameter_wald, row.names = FALSE)
   }
   invisible(x)
+}
+
+.print_calibration_notes <- function(diagnostics) {
+  if (isTRUE(diagnostics$architecture_calibration_warning)) {
+    cat(
+      sprintf(
+        paste0(
+          "Calibration warning: %d hidden nodes exceed %d fitted input nodes; ",
+          "numerical covariance availability is not evidence of calibrated inference.\n"
+        ),
+        diagnostics$n_hidden_nodes,
+        diagnostics$n_input_nodes
+      )
+    )
+  }
+  if (isTRUE(diagnostics$binary_calibration_unvalidated)) {
+    cat(
+      paste0(
+        "Calibration note: binary-response Wald p-values and delta-method ",
+        "intervals are exploratory; their frequentist calibration has not ",
+        "been established by the package authors.\n"
+      )
+    )
+  }
+  invisible(NULL)
 }

@@ -65,6 +65,7 @@
     na.action = stats::na.pass,
     xlev = object$xlevels
   )
+  terms <- attr(model_frame_all, "terms")
   complete <- stats::complete.cases(model_frame_all)
   model_frame <- model_frame_all[complete, , drop = FALSE]
   data_used <- data[complete, , drop = FALSE]
@@ -103,6 +104,16 @@
     data = model_frame,
     contrasts.arg = object$contrasts
   )
+  contrasts <- if (is.null(object$contrasts)) {
+    attr(model_matrix_full, "contrasts")
+  } else {
+    object$contrasts
+  }
+  xlevels <- if (is.null(object$xlevels)) {
+    .model_xlevels(model_frame)
+  } else {
+    object$xlevels
+  }
   intercept <- match("(Intercept)", colnames(model_matrix_full), nomatch = 0L)
   keep <- if (intercept > 0L) {
     seq_len(ncol(model_matrix_full)) != intercept
@@ -160,8 +171,8 @@
   list(
     data = data_used,
     terms = terms,
-    contrasts = object$contrasts,
-    xlevels = object$xlevels,
+    contrasts = contrasts,
+    xlevels = xlevels,
     x = x,
     y = y,
     response_levels = response_levels,
@@ -170,6 +181,19 @@
     column_names = colnames(x),
     variables = variables
   )
+}
+
+.model_xlevels <- function(model_frame) {
+  xlevels <- lapply(model_frame, function(variable) {
+    if (is.factor(variable)) {
+      return(levels(variable))
+    }
+    if (is.character(variable)) {
+      return(levels(factor(variable)))
+    }
+    NULL
+  })
+  xlevels[!vapply(xlevels, is.null, logical(1))]
 }
 
 .sigmoid <- function(x) {

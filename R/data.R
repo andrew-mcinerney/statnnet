@@ -1,56 +1,30 @@
-#' Standardized Boston Housing Data
+#' Auto MPG Data
 #'
-#' A data set containing housing values in 506 suburbs of Boston.
+#' A cleaned version of the UCI Auto MPG data. The six observations with
+#' missing horsepower are omitted, and the car-name identifier is not retained.
+#' Numeric variables remain in their original units. Cylinder count and origin
+#' are factors so that term-level model selection and grouped summaries retain
+#' their original interpretation.
 #'
-#' @format ## `Boston`
-#'  A data frame with 506 rows and 13 variables:
+#' @format A data frame with 392 rows and 8 variables:
 #' \describe{
-#'   \item{\code{crim}}{per capita crime rate by town.}  
-#'   \item{\code{zn}}{  proportion of residential land zoned for lots over 25,000 sq.ft. }
-#'   \item{\code{indus}}{proportion of non-retail business acres per town.  }
-#'   \item{\code{chas}}{Charles River dummy variable (= 1 if tract bounds river; 0 otherwise). }
-#'   \item{\code{nox}}{nitrogen oxides concentration (parts per 10 million).}
-#'   \item{\code{rm}}{average number of rooms per dwelling.}
-#'   \item{\code{age}}{proportion of owner-occupied units built prior to 1940.}
-#'   \item{\code{dis}}{weighted mean of distances to five Boston employment centres.}
-#'   \item{\code{rad}}{index of accessibility to radial highways.}
-#'   \item{\code{tax}}{full-value property-tax rate per $10,000.}
-#'   \item{\code{ptratio}}{pupil-teacher ratio by town.}
-#'   \item{\code{lstat}}{lower status of the population (percent).}
-#'   \item{\code{medv}}{median value of owner-occupied homes in $1000s.}
+#'   \item{mpg}{Fuel economy in miles per gallon.}
+#'   \item{cylinders}{Number of cylinders, stored as a factor.}
+#'   \item{displacement}{Engine displacement in cubic inches.}
+#'   \item{horsepower}{Engine horsepower.}
+#'   \item{weight}{Vehicle weight in pounds.}
+#'   \item{acceleration}{Time to accelerate from 0 to 60 mph, in seconds.}
+#'   \item{model_year}{Model year, represented by the final two digits.}
+#'   \item{origin}{Vehicle origin: USA, Europe, or Japan.}
 #' }
+#'
 #' @source
-#' This dataset was is a standardized version of the Boston dataset obtained from the ISLR2 library, which was orginally obtained and slightly modified from
-#' the Boston dataset that is part of the MASS library. 
-#' References are available in the MASS library. 
-#' 
+#' Quinlan, R. (1993). \emph{Auto MPG} data set. UCI Machine Learning
+#' Repository. \doi{10.24432/C5859H}. Distributed under the Creative Commons
+#' Attribution 4.0 International licence.
+#'
 #' @references
-#'   James, G., Witten, D., Hastie, T., and Tibshirani, R. (2013)
-#'   \emph{An Introduction to Statistical Learning with applications in R},
-#'   \url{https://www.statlearning.com},
-#'   Springer-Verlag, New York
-#'   
-"Boston"
-
-#' Standardized Medical Insurance Data
-#'
-#' A preprocessed version of a medical insurance cost data set. Numeric
-#' covariates and the response have been standardized; categorical predictors
-#' are represented by indicator columns. Because these indicators are already
-#' expanded, grouped factor tests require explicit factor data before fitting
-#' if factor-level inference is desired.
-#'
-#' @format A data frame with 1,338 rows and 9 variables:
-#' \describe{
-#'   \item{age}{Standardized age.}
-#'   \item{sexmale}{Indicator for male sex.}
-#'   \item{bmi}{Standardized body mass index.}
-#'   \item{children}{Standardized number of children.}
-#'   \item{smokeryes}{Indicator for smoking.}
-#'   \item{regionnorthwest}{Indicator for the northwest region.}
-#'   \item{regionsoutheast}{Indicator for the southeast region.}
-#'   \item{regionsouthwest}{Indicator for the southwest region.}
-#'   \item{charges}{Standardized insurance charges.}
-#' }
-"insurance"
+#' Quinlan, R. (1993). Auto MPG. UCI Machine Learning Repository.
+#' \doi{10.24432/C5859H}.
+"auto_mpg"
 

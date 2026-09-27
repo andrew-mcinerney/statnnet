@@ -1,4 +1,4 @@
-test_that("plotnn maps every multi-node edge to the fitted nnet weights", {
+test_that("plot_network maps every multi-node edge to the fitted nnet weights", {
   data <- make_gaussian_data(120)
   fit <- fit_gaussian(data, size = 2L)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -9,7 +9,7 @@ test_that("plotnn maps every multi-node edge to the fitted nnet weights", {
     unlink(plot_file)
   }, add = TRUE)
 
-  edges <- plotnn(model, annotate = "none")
+  edges <- plot_network(model, annotate = "none")
   grDevices::dev.off()
 
   expect_equal(nrow(edges), 10L)
@@ -22,7 +22,7 @@ test_that("plotnn maps every multi-node edge to the fitted nnet weights", {
   expect_equal(edges$to[1:4], rep("h1", 4L))
 })
 
-test_that("plotnn supports all documented annotation modes", {
+test_that("plot_network supports all documented annotation modes", {
   data <- make_binary_data(140)
   fit <- fit_binary(data, size = 2L)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -34,13 +34,13 @@ test_that("plotnn supports all documented annotation modes", {
   }, add = TRUE)
 
   for (mode in c("estimate", "p_value", "none")) {
-    edges <- plotnn(model, annotate = mode, alpha = 0.1)
+    edges <- plot_network(model, annotate = mode, alpha = 0.1)
     expect_true(is.data.frame(edges))
     expect_equal(nrow(edges), model$architecture$hidden * (ncol(model$x) + 1L))
   }
   grDevices::dev.off()
 
-  expect_error(plotnn(model, annotate = "unknown"), "one of")
-  expect_error(plotnn(model, alpha = 0), "between zero and one")
-  expect_error(plotnn(list()), "must inherit")
+  expect_error(plot_network(model, annotate = "unknown"), "one of")
+  expect_error(plot_network(model, alpha = 0), "between zero and one")
+  expect_error(plot_network(list()), "must inherit")
 })

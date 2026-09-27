@@ -1,16 +1,12 @@
 ## R CMD check results
 
-Standard source-tarball check:
+Local Windows `R CMD check --as-cran --no-manual`:
 
-0 errors | 0 warnings | 0 notes
+0 errors | 0 warnings | 1 note
 
-Local `--as-cran` check:
+The remaining note is expected for a first CRAN submission:
 
-0 errors | 0 warnings | 2 notes
+* New submission.
 
-* CRAN incoming feasibility notes the development version and the existing GPL
-  license file.
-* The local Windows runner could not verify the current time.
-
-This development version refactors the former `interpretnn` package into the
-narrower `statnnet` package.
+This release refactors the former `interpretnn` package into the narrower
+`statnnet` package and adds information-criterion model selection.

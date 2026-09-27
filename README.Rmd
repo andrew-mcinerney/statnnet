@@ -15,9 +15,10 @@ knitr::opts_chunk$set(
 
 # statnnet
 
-`statnnet` provides regression-style statistical summaries for small,
-single-hidden-layer neural networks fitted with `nnet`. It retains the
-original fit: it is not a neural-network optimiser or model-selection package.
+`statnnet` provides statistically based selection and regression-style
+interpretation for small, single-hidden-layer neural networks fitted with
+`nnet`. It can select an unpenalised Gaussian model using information criteria,
+or augment an existing supported `nnet` fit.
 
 ## Installation
 
@@ -28,14 +29,48 @@ pak::pak("andrew-mcinerney/statnnet")
 
 ## Basic workflow
 
-```{r example, message=FALSE, warning=FALSE}
+The primary workflow chooses input terms and hidden-layer size using multiple
+random initialisations, then augments the selected fit with diagnostics and
+regression-style summaries:
+
+```{r data, message=FALSE}
 library(nnet)
 library(statnnet)
 
+data("auto_mpg", package = "statnnet")
+analysis_data <- auto_mpg
+continuous_variables <- c(
+  "mpg", "displacement", "horsepower", "weight",
+  "acceleration", "model_year"
+)
+analysis_data[continuous_variables] <- lapply(
+  analysis_data[continuous_variables],
+  function(x) as.numeric(scale(x))
+)
+```
+
+```{r selection, eval=FALSE}
+selection <- select_nnet(
+  mpg ~ displacement + horsepower + weight + acceleration +
+    model_year + origin,
+  data = analysis_data,
+  max_size = 3,
+  n_starts = 10,
+  seed = 2026
+)
+
+selection
+selection_path(selection)
+model <- statnnet(selection)
+```
+
+An existing supported fit can also be augmented directly:
+
+```{r example, message=FALSE, warning=FALSE}
 set.seed(2026)
 fit <- nnet(
-  medv ~ rm + lstat + chas,
-  data = Boston,
+  mpg ~ weight + model_year + origin,
+  data = analysis_data,
   size = 1,
   linout = TRUE,
   decay = 0.1,
@@ -46,8 +81,7 @@ fit <- nnet(
 
 model <- statnnet(
   fit,
-  formula = medv ~ rm + lstat + chas,
-  data = Boston,
+  data = analysis_data,
   response = "continuous"
 )
 
@@ -55,16 +89,32 @@ model
 anova(model)
 ```
 
-`summary(model)` returns structured average partial covariate effects and
+`summary(model)` returns structured average observed-row predictive effects and
 grouped Wald-type summaries. `pce()` and `plot()` provide finite-difference
 partial covariate effects with delta-method or simulation uncertainty.
 
 ```{r pce, eval=FALSE}
 summary(model)
-pce(model, "rm")
-plot(model, "rm")
-plotnn(model, annotate = "p_value")
+pce(model, "weight")
+plot(model, "weight")
+plot_network(model, annotate = "p_value")
 ```
 
 These summaries describe the fitted response function. They are conditional
 on the chosen network and are not post-selection or causal inference.
+
+## Inference guardrails
+
+An available covariance matrix means that the fitted Hessian passed the
+package's numerical checks; it does not establish calibrated Wald tests or
+confidence intervals. The Gaussian-response simulation evidence motivating
+these summaries supports small, parsimonious networks, including keeping the
+hidden layer no larger than the fitted input layer. `statnnet()` records the
+hidden-to-input ratio and warns when the number of hidden nodes exceeds the
+number of fitted input nodes.
+
+All Wald p-values and delta-method intervals are approximate and conditional
+on the fitted architecture, penalty, and local optimum. The cited calibration
+studies concern continuous Gaussian responses. Binary-response calculations
+are available for exploring a fitted response surface, but their frequentist
+calibration has not been established by the package authors.

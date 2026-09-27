@@ -28,6 +28,24 @@
 #'   one standard deviation. Binary predictors use both fitted levels.
 #'
 #' @return A data frame of class `"statnnet_pce"`.
+#' @examples
+#' data("auto_mpg", package = "statnnet")
+#' example_data <- auto_mpg
+#' example_data$mpg <- as.numeric(scale(example_data$mpg))
+#' example_data$weight <- as.numeric(scale(example_data$weight))
+#' set.seed(3)
+#' fit <- nnet::nnet(
+#'   mpg ~ weight + origin,
+#'   data = example_data,
+#'   size = 1,
+#'   linout = TRUE,
+#'   decay = 0.1,
+#'   Hess = TRUE,
+#'   maxit = 500,
+#'   trace = FALSE
+#' )
+#' model <- statnnet(fit, data = example_data, response = "continuous")
+#' pce(model, "weight", length_out = 5)
 #' @export
 pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
                 type = c("curve", "average"),

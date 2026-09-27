@@ -1,10 +1,20 @@
 #' Augment a fitted nnet model with statistical summaries
 #'
 #' `statnnet()` validates a deliberately narrow class of models fitted by
-#' [nnet::nnet()] and retains the original fit. It does not refit or select a
-#' neural network.
+#' [nnet::nnet()] and retains the original fit. It can also augment the final
+#' native `nnet` fit retained by [select_nnet()].
 #'
-#' @param object A fitted object inheriting from `"nnet"`.
+#' A covariance matrix marked as available has passed numerical checks for the
+#' fitted Hessian; this does not establish frequentist calibration of Wald
+#' p-values or delta-method intervals. The diagnostics flag networks with more
+#' hidden nodes than fitted input nodes because the Gaussian-response simulation
+#' evidence motivating these summaries supports parsimonious architectures.
+#' Binary-response summaries are implemented computationally, but their
+#' frequentist calibration has not been established by the package authors and
+#' should be treated as exploratory.
+#'
+#' @param object A fitted object inheriting from `"nnet"`, or a
+#'   `"statnnet_selection"` object returned by [select_nnet()].
 #' @param formula The formula used to fit `object`. This may be omitted for an
 #'   `nnet.formula` object.
 #' @param data The original training data.
@@ -18,6 +28,24 @@
 #'
 #' @return An object of class `"statnnet"` containing the original fit,
 #'   reconstructed model information, covariance calculations, and diagnostics.
+#' @examples
+#' data("auto_mpg", package = "statnnet")
+#' example_data <- auto_mpg
+#' example_data$mpg <- as.numeric(scale(example_data$mpg))
+#' example_data$weight <- as.numeric(scale(example_data$weight))
+#' set.seed(3)
+#' fit <- nnet::nnet(
+#'   mpg ~ weight + origin,
+#'   data = example_data,
+#'   size = 1,
+#'   linout = TRUE,
+#'   decay = 0.1,
+#'   Hess = TRUE,
+#'   maxit = 500,
+#'   trace = FALSE
+#' )
+#' model <- statnnet(fit, data = example_data, response = "continuous")
+#' model
 #' @export
 statnnet <- function(object, ...) {
   UseMethod("statnnet")
@@ -27,9 +55,43 @@ statnnet <- function(object, ...) {
 #' @export
 statnnet.default <- function(object, ...) {
   stop(
-    "`object` must inherit from \"nnet\"; statnnet supports no other fitting backends.",
+    paste0(
+      "`object` must inherit from \"nnet\" or \"statnnet_selection\"; ",
+      "statnnet supports no other fitting backends."
+    ),
     call. = FALSE
   )
+}
+
+#' @rdname statnnet
+#' @export
+statnnet.statnnet_selection <- function(object, covariance_tol = 1e-10,
+                                        objective_tol = 1e-6, ...) {
+  if (length(list(...)) > 0L) {
+    stop("Unused arguments were supplied to `statnnet()`.", call. = FALSE)
+  }
+  result <- statnnet.nnet(
+    object = object$fit,
+    formula = object$formula,
+    data = object$training_data,
+    response = "continuous",
+    covariance_tol = covariance_tol,
+    objective_tol = objective_tol
+  )
+  call <- match.call()
+  call[[1L]] <- quote(statnnet)
+  result$call <- call
+  result$selection <- list(
+    criterion = object$criterion,
+    criterion_value = object$criterion_value,
+    selected_terms = object$selected_terms,
+    excluded_terms = object$excluded_terms,
+    size = object$size,
+    search_path = object$search_path,
+    diagnostics = object$diagnostics,
+    call = object$call
+  )
+  result
 }
 
 #' @rdname statnnet
@@ -159,6 +221,15 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
   diagnostics$n_parameters <- length(weights)
   diagnostics$n_observations <- nrow(reconstructed$x)
   diagnostics$decay <- as.numeric(object$decay)
+  diagnostics$n_input_nodes <- as.integer(object$n[1L])
+  diagnostics$n_hidden_nodes <- as.integer(object$n[2L])
+  diagnostics$hidden_to_input_ratio <- (
+    diagnostics$n_hidden_nodes / diagnostics$n_input_nodes
+  )
+  diagnostics$architecture_calibration_warning <- (
+    diagnostics$n_hidden_nodes > diagnostics$n_input_nodes
+  )
+  diagnostics$binary_calibration_unvalidated <- identical(response, "binary")
 
   if (!identical(as.integer(object$convergence), 0L)) {
     diagnostics$covariance_available <- FALSE
@@ -200,27 +271,47 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
     groups = groups,
     variables = reconstructed$variables,
     diagnostics = diagnostics,
-    covariance_tol = covariance_tol
+    covariance_tol = covariance_tol,
+    selection = NULL
   )
   class(result) <- "statnnet"
 
+  diagnostic_warnings <- character()
   if (!isTRUE(diagnostics$covariance_available)) {
-    warning(
+    diagnostic_warnings <- c(
+      diagnostic_warnings,
       paste0(
         "Covariance-based summaries are unavailable: ",
         diagnostics$covariance_reason,
         "."
-      ),
-      call. = FALSE
+      )
     )
   } else if (isTRUE(diagnostics$conditioning_warning)) {
-    warning(
+    diagnostic_warnings <- c(
+      diagnostic_warnings,
       sprintf(
         "The penalised information matrix is poorly conditioned (reciprocal condition number %.3g).",
         diagnostics$information_rcond
-      ),
-      call. = FALSE
+      )
     )
+  }
+  if (isTRUE(diagnostics$architecture_calibration_warning)) {
+    diagnostic_warnings <- c(
+      diagnostic_warnings,
+      sprintf(
+        paste(
+          "The network has more hidden nodes (%d) than fitted input nodes (%d).",
+          "Numerical covariance availability does not establish calibrated",
+          "inference; use a more parsimonious architecture or treat Wald and",
+          "delta-method results as exploratory."
+        ),
+        diagnostics$n_hidden_nodes,
+        diagnostics$n_input_nodes
+      )
+    )
+  }
+  if (length(diagnostic_warnings)) {
+    warning(paste(diagnostic_warnings, collapse = " "), call. = FALSE)
   }
 
   result

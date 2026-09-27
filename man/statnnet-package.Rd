@@ -3,18 +3,18 @@
 \docType{package}
 \name{statnnet-package}
 \alias{statnnet-package}
-\title{statnnet: statistical summaries for fitted nnet models}
+\title{statnnet: statistical selection and interpretation for nnet models}
 \description{
-\code{statnnet} provides regression-style statistical summaries for small,
-parsimonious, single-hidden-layer neural networks already fitted with
-\code{\link[nnet:nnet]{nnet::nnet()}}. It does not refit, select, or provide post-selection
-inference for neural networks.
+\code{statnnet} selects parsimonious, single-hidden-layer Gaussian regression
+models fitted with \code{\link[nnet:nnet]{nnet::nnet()}} and provides regression-style statistical
+summaries for supported fitted \code{nnet} models. Inferential summaries after
+selection are conditional on the selected model and are not post-selection
+inference.
 }
 \seealso{
 Useful links:
 \itemize{
   \item \url{https://github.com/andrew-mcinerney/statnnet}
-  \item \url{https://andrew-mcinerney.github.io/statnnet/}
   \item Report bugs at \url{https://github.com/andrew-mcinerney/statnnet/issues}
 }
 

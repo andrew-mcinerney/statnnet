@@ -8,7 +8,7 @@ if (length(script_arg) == 1L) {
   repository_dir <- normalizePath(".")
 }
 
-required_packages <- c("rmarkdown", "rjtools", "nnet", "pdp", "statnnet")
+required_packages <- c("rmarkdown", "rjtools", "nnet", "statnnet")
 available <- vapply(
   required_packages,
   requireNamespace,
@@ -23,21 +23,63 @@ if (!all(available)) {
   )
 }
 
+if (!rmarkdown::pandoc_available() && identical(.Platform$OS.type, "windows")) {
+  pandoc_candidates <- c(
+    "C:/Program Files/RStudio/resources/app/bin/quarto/bin/tools",
+    "C:/Program Files/Positron/resources/app/quarto/bin/tools",
+    "C:/Program Files/Quarto/bin/tools"
+  )
+  pandoc_candidates <- pandoc_candidates[
+    file.exists(file.path(pandoc_candidates, "pandoc.exe"))
+  ]
+  if (length(pandoc_candidates) > 0L) {
+    Sys.setenv(RSTUDIO_PANDOC = pandoc_candidates[[1L]])
+  }
+}
+
+if (!rmarkdown::pandoc_available()) {
+  stop("Pandoc is required to render the paper but was not found.")
+}
+
 source_file <- file.path(repository_dir, "paper", "new-draft.Rmd")
 message("Rendering ", source_file)
 
 rmarkdown::render(
   source_file,
-  output_format = "all",
+  output_format = "rjtools::rjournal_pdf_article",
   clean = TRUE,
   envir = new.env(parent = globalenv())
 )
 
-expected_outputs <- file.path(
+intermediate_files <- c(
+  file.path(
+    repository_dir,
+    "paper",
+    c(
+      "new-draft.R", "new-draft.html", "new-draft.tex",
+      "new-draft.knit.md", "new-draft.utf8.md", "session-info.txt"
+    )
+  ),
+  list.files(
+    file.path(repository_dir, "paper"),
+    pattern = "\\.(aux|bbl|blg|brf|log|out|toc)$",
+    full.names = TRUE
+  )
+)
+unlink(intermediate_files[file.exists(intermediate_files)])
+
+intermediate_directories <- file.path(
   repository_dir,
   "paper",
-  c("new-draft.html", "new-draft.pdf", "new-draft.tex", "new-draft.R")
+  c("new-draft_files", "new_draft_files")
 )
+unlink(
+  intermediate_directories[dir.exists(intermediate_directories)],
+  recursive = TRUE,
+  force = TRUE
+)
+
+expected_outputs <- file.path(repository_dir, "paper", "new-draft.pdf")
 
 if (!all(file.exists(expected_outputs))) {
   stop(

@@ -12,9 +12,27 @@
 #' @param ... Additional graphical parameters passed to [graphics::plot()].
 #'
 #' @return Edge information, invisibly.
+#' @examples
+#' data("auto_mpg", package = "statnnet")
+#' example_data <- auto_mpg
+#' example_data$mpg <- as.numeric(scale(example_data$mpg))
+#' example_data$weight <- as.numeric(scale(example_data$weight))
+#' set.seed(3)
+#' fit <- nnet::nnet(
+#'   mpg ~ weight + origin,
+#'   data = example_data,
+#'   size = 1,
+#'   linout = TRUE,
+#'   decay = 0.1,
+#'   Hess = TRUE,
+#'   maxit = 500,
+#'   trace = FALSE
+#' )
+#' model <- statnnet(fit, data = example_data, response = "continuous")
+#' plot_network(model, annotate = "none")
 #' @export
-plotnn <- function(x, annotate = c("estimate", "p_value", "none"),
-                   alpha = 0.05, digits = 3L, ...) {
+plot_network <- function(x, annotate = c("estimate", "p_value", "none"),
+                         alpha = 0.05, digits = 3L, ...) {
   if (!inherits(x, "statnnet")) {
     stop("`x` must inherit from \"statnnet\".", call. = FALSE)
   }

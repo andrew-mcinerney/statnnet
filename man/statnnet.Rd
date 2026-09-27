@@ -3,12 +3,15 @@
 \name{statnnet}
 \alias{statnnet}
 \alias{statnnet.default}
+\alias{statnnet.statnnet_selection}
 \alias{statnnet.nnet}
 \title{Augment a fitted nnet model with statistical summaries}
 \usage{
 statnnet(object, ...)
 
 \method{statnnet}{default}(object, ...)
+
+\method{statnnet}{statnnet_selection}(object, covariance_tol = 1e-10, objective_tol = 1e-06, ...)
 
 \method{statnnet}{nnet}(
   object,
@@ -21,9 +24,16 @@ statnnet(object, ...)
 )
 }
 \arguments{
-\item{object}{A fitted object inheriting from \code{"nnet"}.}
+\item{object}{A fitted object inheriting from \code{"nnet"}, or a
+\code{"statnnet_selection"} object returned by \code{\link[=select_nnet]{select_nnet()}}.}
 
 \item{...}{Reserved for methods.}
+
+\item{covariance_tol}{Relative numerical tolerance used to decide whether
+the penalised information matrix is reliably invertible.}
+
+\item{objective_tol}{Relative tolerance for validating the reconstructed
+fitting criterion against \code{object$value}.}
 
 \item{formula}{The formula used to fit \code{object}. This may be omitted for an
 \code{nnet.formula} object.}
@@ -32,12 +42,6 @@ statnnet(object, ...)
 
 \item{response}{Either \code{"continuous"} or \code{"binary"}. When \code{NULL}, the
 response type is inferred from the fitted \code{nnet} object.}
-
-\item{covariance_tol}{Relative numerical tolerance used to decide whether
-the penalised information matrix is reliably invertible.}
-
-\item{objective_tol}{Relative tolerance for validating the reconstructed
-fitting criterion against \code{object$value}.}
 }
 \value{
 An object of class \code{"statnnet"} containing the original fit,
@@ -45,6 +49,35 @@ reconstructed model information, covariance calculations, and diagnostics.
 }
 \description{
 \code{statnnet()} validates a deliberately narrow class of models fitted by
-\code{\link[nnet:nnet]{nnet::nnet()}} and retains the original fit. It does not refit or select a
-neural network.
+\code{\link[nnet:nnet]{nnet::nnet()}} and retains the original fit. It can also augment the final
+native \code{nnet} fit retained by \code{\link[=select_nnet]{select_nnet()}}.
+}
+\details{
+A covariance matrix marked as available has passed numerical checks for the
+fitted Hessian; this does not establish frequentist calibration of Wald
+p-values or delta-method intervals. The diagnostics flag networks with more
+hidden nodes than fitted input nodes because the Gaussian-response simulation
+evidence motivating these summaries supports parsimonious architectures.
+Binary-response summaries are implemented computationally, but their
+frequentist calibration has not been established by the package authors and
+should be treated as exploratory.
+}
+\examples{
+data("auto_mpg", package = "statnnet")
+example_data <- auto_mpg
+example_data$mpg <- as.numeric(scale(example_data$mpg))
+example_data$weight <- as.numeric(scale(example_data$weight))
+set.seed(3)
+fit <- nnet::nnet(
+  mpg ~ weight + origin,
+  data = example_data,
+  size = 1,
+  linout = TRUE,
+  decay = 0.1,
+  Hess = TRUE,
+  maxit = 500,
+  trace = FALSE
+)
+model <- statnnet(fit, data = example_data, response = "continuous")
+model
 }

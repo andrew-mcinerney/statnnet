@@ -137,6 +137,18 @@ test_that("summary and anova return structured objects", {
   expect_true(is.data.frame(result$parameter_wald))
 })
 
+test_that("anova print omits a redundant all-ok status column", {
+  data <- make_gaussian_data()
+  fit <- fit_gaussian(data)
+  model <- suppressWarnings(statnnet(fit, data = data))
+  result <- anova(model)
+
+  expect_true("status" %in% names(result))
+  expect_true(all(result$status == "ok"))
+  printed <- capture.output(print(result))
+  expect_false(any(grepl("status", printed, fixed = TRUE)))
+})
+
 test_that("summary uses fast observed-row effects by default", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
