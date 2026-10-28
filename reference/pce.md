@@ -83,6 +83,13 @@ pce(
 
 A data frame of class `"statnnet_pce"`.
 
+## References
+
+McInerney, A. and Burke, K. (2026). Investigating Statistical Inference
+and Covariate Effects in Shallow Neural Networks. arXiv:2311.08139.
+[doi:10.48550/arXiv.2311.08139](https://doi.org/10.48550/arXiv.2311.08139)
+.
+
 ## Examples
 
 ``` r

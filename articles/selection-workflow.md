@@ -37,8 +37,8 @@ selection <- select_nnet(
   mpg ~ cylinders + displacement + horsepower + weight + acceleration +
     model_year + origin,
   data = analysis_data,
-  max_size = 2,
-  n_starts = 3,
+  max_size = 5,
+  n_starts = 5,
   criterion = "BIC",
   maxit = 1000,
   seed = 2026,
@@ -50,27 +50,27 @@ selection
 #> Call:
 #> select_nnet(x = mpg ~ cylinders + displacement + horsepower + 
 #>     weight + acceleration + model_year + origin, data = analysis_data, 
-#>     max_size = 2, n_starts = 3, criterion = "BIC", maxit = 1000, 
+#>     max_size = 5, n_starts = 5, criterion = "BIC", maxit = 1000, 
 #>     seed = 2026, progress = FALSE)
-#> Selected model: 5 input columns, 2 hidden units, 15 network weights
-#> BIC: 332.725; 33 candidate models; 99 converged starts
-#> Selected terms: horsepower, weight, model_year, origin
-#> Excluded terms: cylinders, displacement, acceleration
+#> Selected model: 6 input columns, 2 hidden units, 17 network weights
+#> BIC: 316.842; 39 candidate models; 194 converged starts
+#> Selected terms: displacement, horsepower, weight, model_year, origin
+#> Excluded terms: cylinders, acceleration
 summary(selection)
 #> statnnet model-selection summary
-#> Selected formula: mpg ~ horsepower + weight + model_year + origin
-#> Architecture: 5-2-1; 15 weights
-#> BIC: 332.725
-#> Search: 33 candidates; 0 failed candidates; 0 failed starts
+#> Selected formula: mpg ~ displacement + horsepower + weight + model_year + origin
+#> Architecture: 6-2-1; 17 weights
+#> BIC: 316.842
+#> Search: 39 candidates; 0 failed candidates; 1 failed starts
 #> 
 #> Terms
 #>          term selected
+#>  displacement     TRUE
 #>    horsepower     TRUE
 #>        weight     TRUE
 #>    model_year     TRUE
 #>        origin     TRUE
 #>     cylinders    FALSE
-#>  displacement    FALSE
 #>  acceleration    FALSE
 ```
 
@@ -79,34 +79,34 @@ The evaluated search path is retained and can be inspected or plotted.
 ``` r
 
 head(selection_path(selection))
-#>   evaluation  phase step           candidate
-#> 1          1 hidden    1              size_1
-#> 2          2 hidden    1              size_2
-#> 3          3  input    1    remove_cylinders
-#> 4          4  input    1 remove_displacement
-#> 5          5  input    1   remove_horsepower
-#> 6          6  input    1       remove_weight
+#>   evaluation  phase step        candidate
+#> 1          1 hidden    1           size_1
+#> 2          2 hidden    1           size_2
+#> 3          3 hidden    1           size_3
+#> 4          4 hidden    1           size_4
+#> 5          5 hidden    1           size_5
+#> 6          6  input    1 remove_cylinders
 #>                                                                        included_terms
 #> 1 cylinders + displacement + horsepower + weight + acceleration + model_year + origin
 #> 2 cylinders + displacement + horsepower + weight + acceleration + model_year + origin
-#> 3             displacement + horsepower + weight + acceleration + model_year + origin
-#> 4                cylinders + horsepower + weight + acceleration + model_year + origin
-#> 5              cylinders + displacement + weight + acceleration + model_year + origin
-#> 6          cylinders + displacement + horsepower + acceleration + model_year + origin
+#> 3 cylinders + displacement + horsepower + weight + acceleration + model_year + origin
+#> 4 cylinders + displacement + horsepower + weight + acceleration + model_year + origin
+#> 5 cylinders + displacement + horsepower + weight + acceleration + model_year + origin
+#> 6             displacement + horsepower + weight + acceleration + model_year + origin
 #>   n_terms n_inputs size n_parameters criterion criterion_value converged_starts
-#> 1       7       11    1           15       BIC        362.8806                3
-#> 2       7       11    2           28       BIC        363.5503                3
-#> 3       6        7    1           11       BIC        358.7954                3
-#> 4       6       10    1           14       BIC        357.0597                3
-#> 5       6       10    1           14       BIC        822.0933                3
-#> 6       6       10    1           14       BIC        398.4909                3
+#> 1       7       11    1           15       BIC        362.8806                5
+#> 2       7       11    2           28       BIC        363.1365                5
+#> 3       7       11    3           41       BIC        426.8388                5
+#> 4       7       11    4           54       BIC        393.5217                4
+#> 5       7       11    5           67       BIC        418.8539                5
+#> 6       6        7    1           11       BIC        358.7954                5
 #>   n_starts best_start selected
-#> 1        3          3    FALSE
-#> 2        3          3    FALSE
-#> 3        3          3    FALSE
-#> 4        3          3    FALSE
-#> 5        3          1    FALSE
-#> 6        3          3    FALSE
+#> 1        5          4    FALSE
+#> 2        5          1    FALSE
+#> 3        5          4    FALSE
+#> 4        5          5    FALSE
+#> 5        5          5    FALSE
+#> 6        5          5    FALSE
 plot(selection)
 ```
 
@@ -140,10 +140,10 @@ therefore be treated as exploratory.
 selected_model <- suppressWarnings(statnnet(selection))
 selected_model
 #> statnnet: statistical summary of a fitted nnet model
-#> Formula: mpg ~ horsepower + weight + model_year + origin
-#> Architecture: 5-2-1; 15 weights; n = 392
+#> Formula: mpg ~ displacement + horsepower + weight + model_year + origin
+#> Architecture: 6-2-1; 17 weights; n = 392
 #> Response: continuous; decay: 0
-#> Selection: BIC = 332.725; uncertainty is conditional on the selected model
+#> Selection: BIC = 316.842; uncertainty is conditional on the selected model
 #> nnet convergence code: 0
 #> Covariance: unavailable - the penalised information matrix is not positive definite
 ```
@@ -176,41 +176,45 @@ model <- statnnet(
 
 model
 #> statnnet: statistical summary of a fitted nnet model
-#> Formula: mpg ~ horsepower + weight + model_year + origin
-#> Architecture: 5-2-1; 15 weights; n = 392
+#> Formula: mpg ~ displacement + horsepower + weight + model_year + origin
+#> Architecture: 6-2-1; 17 weights; n = 392
 #> Response: continuous; decay: 0.02
 #> nnet convergence code: 0
-#> Covariance: available (reciprocal condition number 2.27e-05)
+#> Covariance: available (reciprocal condition number 4.65e-05)
 summary(model, effects = "none")
 #> statnnet summary
-#> Formula: mpg ~ horsepower + weight + model_year + origin
-#> Response: continuous; architecture: 5-2-1
+#> Formula: mpg ~ displacement + horsepower + weight + model_year + origin
+#> Response: continuous; architecture: 6-2-1
 #> 
 #> Effect summaries: omitted
 #> 
 #> Grouped input-to-hidden Wald summaries
-#>        term             model_columns n_weights effective_df wald_chisq
-#>  horsepower                horsepower         2     1.889432   16.61118
-#>      weight                    weight         2     1.969374   50.47619
-#>  model_year                model_year         2     1.982435   67.15539
-#>      origin originEurope, originJapan         4     3.899817   13.73133
+#>          term             model_columns n_weights effective_df wald_chisq
+#>  displacement              displacement         2     1.919229   1.379557
+#>    horsepower                horsepower         2     1.970181  22.182972
+#>        weight                    weight         2     1.884890  21.861343
+#>    model_year                model_year         2     1.919673  32.669042
+#>        origin originEurope, originJapan         4     3.845439   8.292000
 #>       p_value
-#>  2.111163e-04
-#>  1.031783e-11
-#>  2.521446e-15
-#>  7.548034e-03
+#>  4.819406e-01
+#>  1.455769e-05
+#>  1.497413e-05
+#>  7.008436e-08
+#>  7.391180e-02
 anova(model)
 #> Grouped input-to-hidden Wald summaries
-#>        term             model_columns n_weights effective_df wald_chisq
-#>  horsepower                horsepower         2     1.889432   16.61118
-#>      weight                    weight         2     1.969374   50.47619
-#>  model_year                model_year         2     1.982435   67.15539
-#>      origin originEurope, originJapan         4     3.899817   13.73133
+#>          term             model_columns n_weights effective_df wald_chisq
+#>  displacement              displacement         2     1.919229   1.379557
+#>    horsepower                horsepower         2     1.970181  22.182972
+#>        weight                    weight         2     1.884890  21.861343
+#>    model_year                model_year         2     1.919673  32.669042
+#>        origin originEurope, originJapan         4     3.845439   8.292000
 #>       p_value
-#>  2.111163e-04
-#>  1.031783e-11
-#>  2.521446e-15
-#>  7.548034e-03
+#>  4.819406e-01
+#>  1.455769e-05
+#>  1.497413e-05
+#>  7.008436e-08
+#>  7.391180e-02
 ```
 
 ## Describe the fitted response surface
@@ -224,18 +228,18 @@ choices above.
 ``` r
 
 pce(model, "weight", length_out = 5)
-#>   variable contrast       value step     estimate  std_error   conf_low
-#> 1   weight     <NA> -1.60652233    1 -0.829196198 0.08958951 -1.0047884
-#> 2   weight     <NA> -0.81843976    1 -0.730285350 0.05891874 -0.8457640
-#> 3   weight     <NA> -0.03035718    1 -0.478778741 0.05854461 -0.5935241
-#> 4   weight     <NA>  0.75772540    1 -0.209584604 0.09348839 -0.3928185
-#> 5   weight     <NA>  1.54580798    1 -0.009546099 0.11030917 -0.2257481
-#>     conf_high
-#> 1 -0.65360399
-#> 2 -0.61480675
-#> 3 -0.36403341
-#> 4 -0.02635073
-#> 5  0.20665590
+#>   variable contrast       value step   estimate  std_error   conf_low
+#> 1   weight     <NA> -1.60652233    1 -0.7382568 0.07535996 -0.8859596
+#> 2   weight     <NA> -0.81843976    1 -0.7472244 0.14478001 -1.0309880
+#> 3   weight     <NA> -0.03035718    1 -0.4880063 0.06942109 -0.6240691
+#> 4   weight     <NA>  0.75772540    1 -0.2402029 0.12157500 -0.4784855
+#> 5   weight     <NA>  1.54580798    1 -0.1163020 0.11270499 -0.3371997
+#>      conf_high
+#> 1 -0.590553970
+#> 2 -0.463460833
+#> 3 -0.351943430
+#> 4 -0.001920282
+#> 5  0.104595706
 ```
 
 ``` r
@@ -255,10 +259,20 @@ predictions remain available through
 
 head(predict(model, newdata = analysis_data))
 #>        [,1]
-#> 1 -1.035954
-#> 2 -1.134669
-#> 3 -1.029109
-#> 4 -1.027883
-#> 5 -1.024023
-#> 6 -1.296471
+#> 1 -1.058587
+#> 2 -1.196590
+#> 3 -1.107343
+#> 4 -1.114626
+#> 5 -1.083773
+#> 6 -1.280884
 ```
+
+## Citation
+
+Run `citation("statnnet")` for formatted references and BibTeX entries.
+If you use
+[`select_nnet()`](https://andrew-mcinerney.github.io/statnnet/reference/select_nnet.md)
+for input or hidden-layer selection, cite McInerney and Burke (2025). If
+you use covariance estimates, Wald summaries, grouped tests, or
+covariate-effect methods, cite McInerney and Burke (2026). Analyses
+using both parts of the package should cite both papers.

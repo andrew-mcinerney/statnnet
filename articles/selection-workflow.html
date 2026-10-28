@@ -96,8 +96,8 @@ converged starts are eligible for selection.</p>
 <span>  <span class="va">mpg</span> <span class="op">~</span> <span class="va">cylinders</span> <span class="op">+</span> <span class="va">displacement</span> <span class="op">+</span> <span class="va">horsepower</span> <span class="op">+</span> <span class="va">weight</span> <span class="op">+</span> <span class="va">acceleration</span> <span class="op">+</span></span>
 <span>    <span class="va">model_year</span> <span class="op">+</span> <span class="va">origin</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">analysis_data</span>,</span>
-<span>  max_size <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  n_starts <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  max_size <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  n_starts <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>  criterion <span class="op">=</span> <span class="st">"BIC"</span>,</span>
 <span>  maxit <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">2026</span>,</span>
@@ -109,60 +109,60 @@ converged starts are eligible for selection.</p>
 <span><span class="co">#&gt; Call:</span></span>
 <span><span class="co">#&gt; select_nnet(x = mpg ~ cylinders + displacement + horsepower + </span></span>
 <span><span class="co">#&gt;     weight + acceleration + model_year + origin, data = analysis_data, </span></span>
-<span><span class="co">#&gt;     max_size = 2, n_starts = 3, criterion = "BIC", maxit = 1000, </span></span>
+<span><span class="co">#&gt;     max_size = 5, n_starts = 5, criterion = "BIC", maxit = 1000, </span></span>
 <span><span class="co">#&gt;     seed = 2026, progress = FALSE)</span></span>
-<span><span class="co">#&gt; Selected model: 5 input columns, 2 hidden units, 15 network weights</span></span>
-<span><span class="co">#&gt; BIC: 332.725; 33 candidate models; 99 converged starts</span></span>
-<span><span class="co">#&gt; Selected terms: horsepower, weight, model_year, origin</span></span>
-<span><span class="co">#&gt; Excluded terms: cylinders, displacement, acceleration</span></span>
+<span><span class="co">#&gt; Selected model: 6 input columns, 2 hidden units, 17 network weights</span></span>
+<span><span class="co">#&gt; BIC: 316.842; 39 candidate models; 194 converged starts</span></span>
+<span><span class="co">#&gt; Selected terms: displacement, horsepower, weight, model_year, origin</span></span>
+<span><span class="co">#&gt; Excluded terms: cylinders, acceleration</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">selection</span><span class="op">)</span></span>
 <span><span class="co">#&gt; statnnet model-selection summary</span></span>
-<span><span class="co">#&gt; Selected formula: mpg ~ horsepower + weight + model_year + origin</span></span>
-<span><span class="co">#&gt; Architecture: 5-2-1; 15 weights</span></span>
-<span><span class="co">#&gt; BIC: 332.725</span></span>
-<span><span class="co">#&gt; Search: 33 candidates; 0 failed candidates; 0 failed starts</span></span>
+<span><span class="co">#&gt; Selected formula: mpg ~ displacement + horsepower + weight + model_year + origin</span></span>
+<span><span class="co">#&gt; Architecture: 6-2-1; 17 weights</span></span>
+<span><span class="co">#&gt; BIC: 316.842</span></span>
+<span><span class="co">#&gt; Search: 39 candidates; 0 failed candidates; 1 failed starts</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Terms</span></span>
 <span><span class="co">#&gt;          term selected</span></span>
+<span><span class="co">#&gt;  displacement     TRUE</span></span>
 <span><span class="co">#&gt;    horsepower     TRUE</span></span>
 <span><span class="co">#&gt;        weight     TRUE</span></span>
 <span><span class="co">#&gt;    model_year     TRUE</span></span>
 <span><span class="co">#&gt;        origin     TRUE</span></span>
 <span><span class="co">#&gt;     cylinders    FALSE</span></span>
-<span><span class="co">#&gt;  displacement    FALSE</span></span>
 <span><span class="co">#&gt;  acceleration    FALSE</span></span></code></pre></div>
 <p>The evaluated search path is retained and can be inspected or
 plotted.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="../reference/selection_path.html">selection_path</a></span><span class="op">(</span><span class="va">selection</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   evaluation  phase step           candidate</span></span>
-<span><span class="co">#&gt; 1          1 hidden    1              size_1</span></span>
-<span><span class="co">#&gt; 2          2 hidden    1              size_2</span></span>
-<span><span class="co">#&gt; 3          3  input    1    remove_cylinders</span></span>
-<span><span class="co">#&gt; 4          4  input    1 remove_displacement</span></span>
-<span><span class="co">#&gt; 5          5  input    1   remove_horsepower</span></span>
-<span><span class="co">#&gt; 6          6  input    1       remove_weight</span></span>
+<span><span class="co">#&gt;   evaluation  phase step        candidate</span></span>
+<span><span class="co">#&gt; 1          1 hidden    1           size_1</span></span>
+<span><span class="co">#&gt; 2          2 hidden    1           size_2</span></span>
+<span><span class="co">#&gt; 3          3 hidden    1           size_3</span></span>
+<span><span class="co">#&gt; 4          4 hidden    1           size_4</span></span>
+<span><span class="co">#&gt; 5          5 hidden    1           size_5</span></span>
+<span><span class="co">#&gt; 6          6  input    1 remove_cylinders</span></span>
 <span><span class="co">#&gt;                                                                        included_terms</span></span>
 <span><span class="co">#&gt; 1 cylinders + displacement + horsepower + weight + acceleration + model_year + origin</span></span>
 <span><span class="co">#&gt; 2 cylinders + displacement + horsepower + weight + acceleration + model_year + origin</span></span>
-<span><span class="co">#&gt; 3             displacement + horsepower + weight + acceleration + model_year + origin</span></span>
-<span><span class="co">#&gt; 4                cylinders + horsepower + weight + acceleration + model_year + origin</span></span>
-<span><span class="co">#&gt; 5              cylinders + displacement + weight + acceleration + model_year + origin</span></span>
-<span><span class="co">#&gt; 6          cylinders + displacement + horsepower + acceleration + model_year + origin</span></span>
+<span><span class="co">#&gt; 3 cylinders + displacement + horsepower + weight + acceleration + model_year + origin</span></span>
+<span><span class="co">#&gt; 4 cylinders + displacement + horsepower + weight + acceleration + model_year + origin</span></span>
+<span><span class="co">#&gt; 5 cylinders + displacement + horsepower + weight + acceleration + model_year + origin</span></span>
+<span><span class="co">#&gt; 6             displacement + horsepower + weight + acceleration + model_year + origin</span></span>
 <span><span class="co">#&gt;   n_terms n_inputs size n_parameters criterion criterion_value converged_starts</span></span>
-<span><span class="co">#&gt; 1       7       11    1           15       BIC        362.8806                3</span></span>
-<span><span class="co">#&gt; 2       7       11    2           28       BIC        363.5503                3</span></span>
-<span><span class="co">#&gt; 3       6        7    1           11       BIC        358.7954                3</span></span>
-<span><span class="co">#&gt; 4       6       10    1           14       BIC        357.0597                3</span></span>
-<span><span class="co">#&gt; 5       6       10    1           14       BIC        822.0933                3</span></span>
-<span><span class="co">#&gt; 6       6       10    1           14       BIC        398.4909                3</span></span>
+<span><span class="co">#&gt; 1       7       11    1           15       BIC        362.8806                5</span></span>
+<span><span class="co">#&gt; 2       7       11    2           28       BIC        363.1365                5</span></span>
+<span><span class="co">#&gt; 3       7       11    3           41       BIC        426.8388                5</span></span>
+<span><span class="co">#&gt; 4       7       11    4           54       BIC        393.5217                4</span></span>
+<span><span class="co">#&gt; 5       7       11    5           67       BIC        418.8539                5</span></span>
+<span><span class="co">#&gt; 6       6        7    1           11       BIC        358.7954                5</span></span>
 <span><span class="co">#&gt;   n_starts best_start selected</span></span>
-<span><span class="co">#&gt; 1        3          3    FALSE</span></span>
-<span><span class="co">#&gt; 2        3          3    FALSE</span></span>
-<span><span class="co">#&gt; 3        3          3    FALSE</span></span>
-<span><span class="co">#&gt; 4        3          3    FALSE</span></span>
-<span><span class="co">#&gt; 5        3          1    FALSE</span></span>
-<span><span class="co">#&gt; 6        3          3    FALSE</span></span>
+<span><span class="co">#&gt; 1        5          4    FALSE</span></span>
+<span><span class="co">#&gt; 2        5          1    FALSE</span></span>
+<span><span class="co">#&gt; 3        5          4    FALSE</span></span>
+<span><span class="co">#&gt; 4        5          5    FALSE</span></span>
+<span><span class="co">#&gt; 5        5          5    FALSE</span></span>
+<span><span class="co">#&gt; 6        5          5    FALSE</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">selection</span><span class="op">)</span></span></code></pre></div>
 <p><img src="selection-workflow_files/figure-html/path-1.png" class="r-plt" alt="BIC values for the candidate neural-network models evaluated during selection." width="700"></p>
 </div>
@@ -188,10 +188,10 @@ therefore be treated as exploratory.</p>
 <code class="sourceCode R"><span><span class="va">selected_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/warning.html" class="external-link">suppressWarnings</a></span><span class="op">(</span><span class="fu"><a href="../reference/statnnet.html">statnnet</a></span><span class="op">(</span><span class="va">selection</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">selected_model</span></span>
 <span><span class="co">#&gt; statnnet: statistical summary of a fitted nnet model</span></span>
-<span><span class="co">#&gt; Formula: mpg ~ horsepower + weight + model_year + origin</span></span>
-<span><span class="co">#&gt; Architecture: 5-2-1; 15 weights; n = 392</span></span>
+<span><span class="co">#&gt; Formula: mpg ~ displacement + horsepower + weight + model_year + origin</span></span>
+<span><span class="co">#&gt; Architecture: 6-2-1; 17 weights; n = 392</span></span>
 <span><span class="co">#&gt; Response: continuous; decay: 0</span></span>
-<span><span class="co">#&gt; Selection: BIC = 332.725; uncertainty is conditional on the selected model</span></span>
+<span><span class="co">#&gt; Selection: BIC = 316.842; uncertainty is conditional on the selected model</span></span>
 <span><span class="co">#&gt; nnet convergence code: 0</span></span>
 <span><span class="co">#&gt; Covariance: unavailable - the penalised information matrix is not positive definite</span></span></code></pre></div>
 <p>Here we refit the selected architecture with a small, pre-specified
@@ -220,41 +220,45 @@ conditional on the selected structure, penalty, and local optimum.</p>
 <span></span>
 <span><span class="va">model</span></span>
 <span><span class="co">#&gt; statnnet: statistical summary of a fitted nnet model</span></span>
-<span><span class="co">#&gt; Formula: mpg ~ horsepower + weight + model_year + origin</span></span>
-<span><span class="co">#&gt; Architecture: 5-2-1; 15 weights; n = 392</span></span>
+<span><span class="co">#&gt; Formula: mpg ~ displacement + horsepower + weight + model_year + origin</span></span>
+<span><span class="co">#&gt; Architecture: 6-2-1; 17 weights; n = 392</span></span>
 <span><span class="co">#&gt; Response: continuous; decay: 0.02</span></span>
 <span><span class="co">#&gt; nnet convergence code: 0</span></span>
-<span><span class="co">#&gt; Covariance: available (reciprocal condition number 2.27e-05)</span></span>
+<span><span class="co">#&gt; Covariance: available (reciprocal condition number 4.65e-05)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">model</span>, effects <span class="op">=</span> <span class="st">"none"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; statnnet summary</span></span>
-<span><span class="co">#&gt; Formula: mpg ~ horsepower + weight + model_year + origin</span></span>
-<span><span class="co">#&gt; Response: continuous; architecture: 5-2-1</span></span>
+<span><span class="co">#&gt; Formula: mpg ~ displacement + horsepower + weight + model_year + origin</span></span>
+<span><span class="co">#&gt; Response: continuous; architecture: 6-2-1</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Effect summaries: omitted</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Grouped input-to-hidden Wald summaries</span></span>
-<span><span class="co">#&gt;        term             model_columns n_weights effective_df wald_chisq</span></span>
-<span><span class="co">#&gt;  horsepower                horsepower         2     1.889432   16.61118</span></span>
-<span><span class="co">#&gt;      weight                    weight         2     1.969374   50.47619</span></span>
-<span><span class="co">#&gt;  model_year                model_year         2     1.982435   67.15539</span></span>
-<span><span class="co">#&gt;      origin originEurope, originJapan         4     3.899817   13.73133</span></span>
+<span><span class="co">#&gt;          term             model_columns n_weights effective_df wald_chisq</span></span>
+<span><span class="co">#&gt;  displacement              displacement         2     1.919229   1.379557</span></span>
+<span><span class="co">#&gt;    horsepower                horsepower         2     1.970181  22.182972</span></span>
+<span><span class="co">#&gt;        weight                    weight         2     1.884890  21.861343</span></span>
+<span><span class="co">#&gt;    model_year                model_year         2     1.919673  32.669042</span></span>
+<span><span class="co">#&gt;        origin originEurope, originJapan         4     3.845439   8.292000</span></span>
 <span><span class="co">#&gt;       p_value</span></span>
-<span><span class="co">#&gt;  2.111163e-04</span></span>
-<span><span class="co">#&gt;  1.031783e-11</span></span>
-<span><span class="co">#&gt;  2.521446e-15</span></span>
-<span><span class="co">#&gt;  7.548034e-03</span></span>
+<span><span class="co">#&gt;  4.819406e-01</span></span>
+<span><span class="co">#&gt;  1.455769e-05</span></span>
+<span><span class="co">#&gt;  1.497413e-05</span></span>
+<span><span class="co">#&gt;  7.008436e-08</span></span>
+<span><span class="co">#&gt;  7.391180e-02</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/anova.html" class="external-link">anova</a></span><span class="op">(</span><span class="va">model</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Grouped input-to-hidden Wald summaries</span></span>
-<span><span class="co">#&gt;        term             model_columns n_weights effective_df wald_chisq</span></span>
-<span><span class="co">#&gt;  horsepower                horsepower         2     1.889432   16.61118</span></span>
-<span><span class="co">#&gt;      weight                    weight         2     1.969374   50.47619</span></span>
-<span><span class="co">#&gt;  model_year                model_year         2     1.982435   67.15539</span></span>
-<span><span class="co">#&gt;      origin originEurope, originJapan         4     3.899817   13.73133</span></span>
+<span><span class="co">#&gt;          term             model_columns n_weights effective_df wald_chisq</span></span>
+<span><span class="co">#&gt;  displacement              displacement         2     1.919229   1.379557</span></span>
+<span><span class="co">#&gt;    horsepower                horsepower         2     1.970181  22.182972</span></span>
+<span><span class="co">#&gt;        weight                    weight         2     1.884890  21.861343</span></span>
+<span><span class="co">#&gt;    model_year                model_year         2     1.919673  32.669042</span></span>
+<span><span class="co">#&gt;        origin originEurope, originJapan         4     3.845439   8.292000</span></span>
 <span><span class="co">#&gt;       p_value</span></span>
-<span><span class="co">#&gt;  2.111163e-04</span></span>
-<span><span class="co">#&gt;  1.031783e-11</span></span>
-<span><span class="co">#&gt;  2.521446e-15</span></span>
-<span><span class="co">#&gt;  7.548034e-03</span></span></code></pre></div>
+<span><span class="co">#&gt;  4.819406e-01</span></span>
+<span><span class="co">#&gt;  1.455769e-05</span></span>
+<span><span class="co">#&gt;  1.497413e-05</span></span>
+<span><span class="co">#&gt;  7.008436e-08</span></span>
+<span><span class="co">#&gt;  7.391180e-02</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="describe-the-fitted-response-surface">Describe the fitted response surface<a class="anchor" aria-label="anchor" href="#describe-the-fitted-response-surface"></a>
@@ -265,18 +269,18 @@ fitted network rather than causal effects, and their pointwise intervals
 are conditional on the modelling choices above.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pce.html">pce</a></span><span class="op">(</span><span class="va">model</span>, <span class="st">"weight"</span>, length_out <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   variable contrast       value step     estimate  std_error   conf_low</span></span>
-<span><span class="co">#&gt; 1   weight     &lt;NA&gt; -1.60652233    1 -0.829196198 0.08958951 -1.0047884</span></span>
-<span><span class="co">#&gt; 2   weight     &lt;NA&gt; -0.81843976    1 -0.730285350 0.05891874 -0.8457640</span></span>
-<span><span class="co">#&gt; 3   weight     &lt;NA&gt; -0.03035718    1 -0.478778741 0.05854461 -0.5935241</span></span>
-<span><span class="co">#&gt; 4   weight     &lt;NA&gt;  0.75772540    1 -0.209584604 0.09348839 -0.3928185</span></span>
-<span><span class="co">#&gt; 5   weight     &lt;NA&gt;  1.54580798    1 -0.009546099 0.11030917 -0.2257481</span></span>
-<span><span class="co">#&gt;     conf_high</span></span>
-<span><span class="co">#&gt; 1 -0.65360399</span></span>
-<span><span class="co">#&gt; 2 -0.61480675</span></span>
-<span><span class="co">#&gt; 3 -0.36403341</span></span>
-<span><span class="co">#&gt; 4 -0.02635073</span></span>
-<span><span class="co">#&gt; 5  0.20665590</span></span></code></pre></div>
+<span><span class="co">#&gt;   variable contrast       value step   estimate  std_error   conf_low</span></span>
+<span><span class="co">#&gt; 1   weight     &lt;NA&gt; -1.60652233    1 -0.7382568 0.07535996 -0.8859596</span></span>
+<span><span class="co">#&gt; 2   weight     &lt;NA&gt; -0.81843976    1 -0.7472244 0.14478001 -1.0309880</span></span>
+<span><span class="co">#&gt; 3   weight     &lt;NA&gt; -0.03035718    1 -0.4880063 0.06942109 -0.6240691</span></span>
+<span><span class="co">#&gt; 4   weight     &lt;NA&gt;  0.75772540    1 -0.2402029 0.12157500 -0.4784855</span></span>
+<span><span class="co">#&gt; 5   weight     &lt;NA&gt;  1.54580798    1 -0.1163020 0.11270499 -0.3371997</span></span>
+<span><span class="co">#&gt;      conf_high</span></span>
+<span><span class="co">#&gt; 1 -0.590553970</span></span>
+<span><span class="co">#&gt; 2 -0.463460833</span></span>
+<span><span class="co">#&gt; 3 -0.351943430</span></span>
+<span><span class="co">#&gt; 4 -0.001920282</span></span>
+<span><span class="co">#&gt; 5  0.104595706</span></span></code></pre></div>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">model</span>, <span class="st">"weight"</span>, length_out <span class="op">=</span> <span class="fl">25</span><span class="op">)</span></span></code></pre></div>
 <p><img src="selection-workflow_files/figure-html/pce-plot-1.png" class="r-plt" alt="Partial covariate-effect curve for standardized vehicle weight in the selected Auto MPG network." width="700"></p>
@@ -286,12 +290,22 @@ ordinary predictions remain available through
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">model</span>, newdata <span class="op">=</span> <span class="va">analysis_data</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;        [,1]</span></span>
-<span><span class="co">#&gt; 1 -1.035954</span></span>
-<span><span class="co">#&gt; 2 -1.134669</span></span>
-<span><span class="co">#&gt; 3 -1.029109</span></span>
-<span><span class="co">#&gt; 4 -1.027883</span></span>
-<span><span class="co">#&gt; 5 -1.024023</span></span>
-<span><span class="co">#&gt; 6 -1.296471</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 -1.058587</span></span>
+<span><span class="co">#&gt; 2 -1.196590</span></span>
+<span><span class="co">#&gt; 3 -1.107343</span></span>
+<span><span class="co">#&gt; 4 -1.114626</span></span>
+<span><span class="co">#&gt; 5 -1.083773</span></span>
+<span><span class="co">#&gt; 6 -1.280884</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="citation">Citation<a class="anchor" aria-label="anchor" href="#citation"></a>
+</h2>
+<p>Run <code>citation("statnnet")</code> for formatted references and
+BibTeX entries. If you use <code><a href="../reference/select_nnet.html">select_nnet()</a></code> for input or
+hidden-layer selection, cite McInerney and Burke (2025). If you use
+covariance estimates, Wald summaries, grouped tests, or covariate-effect
+methods, cite McInerney and Burke (2026). Analyses using both parts of
+the package should cite both papers.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

@@ -22,7 +22,6 @@ summaries:
 ``` r
 
 library(nnet)
-#> Warning: package 'nnet' was built under R version 4.5.3
 library(statnnet)
 
 data("auto_mpg", package = "statnnet")
@@ -112,6 +111,16 @@ plot_network(model, annotate = "p_value")
 These summaries describe the fitted response function. They are
 conditional on the chosen network and are not post-selection or causal
 inference.
+
+## Citation
+
+Run `citation("statnnet")` for formatted references and BibTeX entries.
+If you use
+[`select_nnet()`](https://andrew-mcinerney.github.io/statnnet/reference/select_nnet.md)
+for input or hidden-layer selection, cite McInerney and Burke (2025). If
+you use covariance estimates, Wald summaries, grouped tests, or
+covariate-effect methods, cite McInerney and Burke (2026). Analyses
+using both parts of the package should cite both papers.
 
 ## Inference and diagnostics
 
