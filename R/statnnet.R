@@ -7,9 +7,8 @@
 #' Covariance calculations are returned only when the fitted Hessian passes the
 #' numerical checks. Wald tests and delta-method intervals are still
 #' approximations conditional on the fitted architecture and local solution.
-#' A warning is given when the hidden layer is larger than the fitted input
-#' layer. Binary-response summaries should be treated as exploratory because
-#' their frequentist calibration has not been studied by the package authors.
+#' An architecture diagnostic is reported when the hidden layer is larger than
+#' the fitted input layer.
 #'
 #' @param object A fitted object inheriting from `"nnet"`, or a
 #'   `"statnnet_selection"` object returned by [select_nnet()].
@@ -233,10 +232,9 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
   diagnostics$hidden_to_input_ratio <- (
     diagnostics$n_hidden_nodes / diagnostics$n_input_nodes
   )
-  diagnostics$architecture_calibration_warning <- (
+  diagnostics$architecture_size_warning <- (
     diagnostics$n_hidden_nodes > diagnostics$n_input_nodes
   )
-  diagnostics$binary_calibration_unvalidated <- identical(response, "binary")
 
   if (!identical(as.integer(object$convergence), 0L)) {
     diagnostics$covariance_available <- FALSE
@@ -304,15 +302,14 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
       )
     )
   }
-  if (isTRUE(diagnostics$architecture_calibration_warning)) {
+  if (isTRUE(diagnostics$architecture_size_warning)) {
     diagnostic_warnings <- c(
       diagnostic_warnings,
       sprintf(
         paste(
           "The network has more hidden nodes (%d) than fitted input nodes (%d).",
-          "Numerical covariance availability does not establish calibrated",
-          "inference; use a more parsimonious architecture or treat Wald and",
-          "delta-method results as exploratory."
+          "Consider a more parsimonious architecture when using",
+          "covariance-based summaries."
         ),
         diagnostics$n_hidden_nodes,
         diagnostics$n_input_nodes

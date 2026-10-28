@@ -11,9 +11,8 @@
 * `statnnet()` retains and validates the fitted `nnet` object.
 * Reports explicit objective, Hessian, covariance, convergence, and conditioning
   diagnostics.
-* Reports inferential-scope diagnostics: `statnnet()` warns when hidden nodes
-  outnumber fitted input nodes and flags binary-response calibration as
-  unvalidated rather than equating numerical invertibility with calibration.
+* Reports numerical and architecture-size diagnostics, including when hidden
+  nodes outnumber fitted input nodes.
 * Provides structured grouped Wald summaries and partial covariate effects.
 * Includes the openly licensed Auto MPG data, a reproducible data-preparation
   script, and data provenance.

@@ -81,7 +81,7 @@ print.statnnet <- function(x, ...) {
   } else {
     cat("Covariance: unavailable - ", x$diagnostics$covariance_reason, "\n", sep = "")
   }
-  .print_calibration_notes(x$diagnostics)
+  .print_architecture_notes(x$diagnostics)
   invisible(x)
 }
 
@@ -289,7 +289,7 @@ print.summary.statnnet <- function(x, ...) {
   if (!isTRUE(x$diagnostics$covariance_available)) {
     cat("Uncertainty unavailable: ", x$diagnostics$covariance_reason, "\n", sep = "")
   }
-  .print_calibration_notes(x$diagnostics)
+  .print_architecture_notes(x$diagnostics)
   if (identical(x$effects, "rowwise")) {
     cat("\nAverage observed-row predictive finite-difference effects\n")
     print.data.frame(x$pce, row.names = FALSE)
@@ -308,25 +308,13 @@ print.summary.statnnet <- function(x, ...) {
   invisible(x)
 }
 
-.print_calibration_notes <- function(diagnostics) {
-  if (isTRUE(diagnostics$architecture_calibration_warning)) {
+.print_architecture_notes <- function(diagnostics) {
+  if (isTRUE(diagnostics$architecture_size_warning)) {
     cat(
       sprintf(
-        paste0(
-          "Calibration warning: %d hidden nodes exceed %d fitted input nodes; ",
-          "numerical covariance availability is not evidence of calibrated inference.\n"
-        ),
+        "Architecture note: %d hidden nodes exceed %d fitted input nodes.\n",
         diagnostics$n_hidden_nodes,
         diagnostics$n_input_nodes
-      )
-    )
-  }
-  if (isTRUE(diagnostics$binary_calibration_unvalidated)) {
-    cat(
-      paste0(
-        "Calibration note: binary-response Wald p-values and delta-method ",
-        "intervals are exploratory; their frequentist calibration has not ",
-        "been established by the package authors.\n"
       )
     )
   }

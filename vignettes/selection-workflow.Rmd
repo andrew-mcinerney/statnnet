@@ -69,17 +69,11 @@ Converting the result with `statnnet()` checks the selected `nnet` fit and
 reports whether covariance-based summaries are numerically available. Selection
 is unpenalised, and a converged fit may still have poorly conditioned curvature.
 
-Numerical availability does not show that Wald p-values or delta-method
-intervals have their nominal coverage. The Gaussian simulations motivating the
-method favour parsimonious networks, including a hidden layer no larger than
-the fitted input layer. `statnnet()` records this comparison and warns when
-there are more hidden nodes than input nodes. The inferential quantities remain
-approximate and conditional on the setting studied.
-
-The package can calculate the same summaries for supported binary-response
-fits, but the package authors have not established their frequentist
-calibration; binary Wald tests and intervals should therefore be treated as
-exploratory.
+The method is intended for small, parsimonious networks. `statnnet()` records
+the hidden-to-input size ratio and reports an architecture diagnostic when
+there are more hidden nodes than input nodes. Wald p-values and delta-method
+intervals are approximate and conditional on the fitted architecture, penalty,
+and local optimum.
 
 ```{r diagnose}
 selected_model <- suppressWarnings(statnnet(selection))

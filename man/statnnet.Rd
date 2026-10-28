@@ -56,9 +56,8 @@ fit is retained. A model selected by \code{\link[=select_nnet]{select_nnet()}} c
 Covariance calculations are returned only when the fitted Hessian passes the
 numerical checks. Wald tests and delta-method intervals are still
 approximations conditional on the fitted architecture and local solution.
-A warning is given when the hidden layer is larger than the fitted input
-layer. Binary-response summaries should be treated as exploratory because
-their frequentist calibration has not been studied by the package authors.
+An architecture diagnostic is reported when the hidden layer is larger than
+the fitted input layer.
 }
 \examples{
 data("auto_mpg", package = "statnnet")

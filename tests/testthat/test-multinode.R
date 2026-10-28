@@ -4,7 +4,7 @@ test_that("multi-node Gaussian fits preserve predictions and term groups", {
   model <- suppressWarnings(statnnet(fit, data = data))
 
   expect_equal(model$architecture$hidden, 3L)
-  expect_false(model$diagnostics$architecture_calibration_warning)
+  expect_false(model$diagnostics$architecture_size_warning)
   expect_equal(model$diagnostics$hidden_to_input_ratio, 3 / 4)
   expect_equal(predict(model), predict(fit), tolerance = 1e-10)
   expect_equal(model$groups$x1$weight_indices, c(2L, 7L, 12L))
@@ -35,12 +35,6 @@ test_that("multi-node binary gradients agree with central differences", {
   }, numeric(nrow(x)))
 
   expect_equal(model$architecture$hidden, 2L)
-  expect_true(model$diagnostics$binary_calibration_unvalidated)
-  expect_match(
-    capture.output(print(model)),
-    "binary-response Wald p-values",
-    all = FALSE
-  )
   expect_equal(predict(model), predict(fit), tolerance = 1e-10)
   expect_equal(unname(analytic), unname(numerical), tolerance = 1e-6)
 })
@@ -99,12 +93,12 @@ test_that("a hidden layer larger than the input layer warns", {
     model <- statnnet(fit, data = data),
     "more hidden nodes"
   )
-  expect_true(model$diagnostics$architecture_calibration_warning)
+  expect_true(model$diagnostics$architecture_size_warning)
   expect_equal(model$diagnostics$n_input_nodes, 1L)
   expect_equal(model$diagnostics$n_hidden_nodes, 2L)
   expect_match(
     capture.output(print(model)),
-    "Calibration warning",
+    "Architecture note",
     all = FALSE
   )
 })
