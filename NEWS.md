@@ -1,19 +1,19 @@
 # statnnet 0.1.0
 
-* Added `select_nnet()` for information-criterion selection of input terms and
+* Provides `select_nnet()` for information-criterion selection of input terms and
   hidden-layer size using multiple `nnet` initialisations.
-* Added `statnnet_selection` objects with print, summary, coefficient,
+* Provides `statnnet_selection` objects with print, summary, coefficient,
   prediction, plot, and `selection_path()` methods.
-* `statnnet()` now accepts a model-selection result and records that subsequent
+* `statnnet()` accepts a model-selection result and records that subsequent
   uncertainty summaries are conditional on the selected model.
-* Added `plot_network()` for visualising fitted network weights and
+* Provides `plot_network()` for visualising fitted network weights and
   inferential annotations.
-* `statnnet()` now retains and validates an existing fitted `nnet` object.
-* Added explicit objective, Hessian, covariance, convergence, and conditioning
+* `statnnet()` retains and validates the fitted `nnet` object.
+* Reports explicit objective, Hessian, covariance, convergence, and conditioning
   diagnostics.
-* Added inferential-scope diagnostics: `statnnet()` now warns when hidden nodes
+* Reports inferential-scope diagnostics: `statnnet()` warns when hidden nodes
   outnumber fitted input nodes and flags binary-response calibration as
   unvalidated rather than equating numerical invertibility with calibration.
-* Added structured grouped Wald summaries and partial covariate effects.
-* Replaced the legacy Boston data and examples with the openly licensed Auto
-  MPG data, including a reproducible data-preparation script and provenance.
+* Provides structured grouped Wald summaries and partial covariate effects.
+* Includes the openly licensed Auto MPG data, a reproducible data-preparation
+  script, and data provenance.
