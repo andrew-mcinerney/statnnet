@@ -1,4 +1,4 @@
-#' Auto MPG Data
+#' Auto MPG data
 #'
 #' A cleaned version of the UCI Auto MPG data. The six observations with
 #' missing horsepower are omitted, and the car-name identifier is not retained.

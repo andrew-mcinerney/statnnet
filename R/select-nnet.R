@@ -1,15 +1,15 @@
 #' Select a parsimonious nnet model
 #'
-#' `select_nnet()` implements the information-criterion procedure of
-#' McInerney and Burke: hidden-layer size selection, backward input selection,
-#' and alternating fine-tuning of the hidden and input layers. Candidate models
-#' are fitted from several random initialisations using [nnet::nnet()].
+#' `select_nnet()` implements the information-criterion procedure of McInerney
+#' and Burke. It first selects the hidden-layer size, applies backward input
+#' selection, and then alternates one-step changes to the hidden and input
+#' layers. Each candidate is fitted from several random initialisations using
+#' [nnet::nnet()].
 #'
-#' The published procedure is currently implemented only for unpenalised
-#' Gaussian regression. In the formula interface, complete right-hand-side
-#' terms are selected together, so all design-matrix columns for a factor or a
-#' transformed term enter or leave the model as a group. In the matrix
-#' interface, each column is a selectable input.
+#' Selection is available for unpenalised Gaussian regression. With a formula,
+#' complete right-hand-side terms are selected together: all columns belonging
+#' to a factor or transformed term enter or leave as a group. With a matrix,
+#' columns are selected individually.
 #'
 #' @param x A model formula or a numeric design matrix.
 #' @param ... Arguments passed to methods and then to [nnet::nnet()]. Arguments
@@ -338,26 +338,27 @@ select_nnet.default <- function(x, y, ..., max_size, n_starts = 5L,
     set.seed(control$seed)
   }
 
-  state <- new.env(parent = emptyenv())
-  state$evaluation <- 0L
-  state$path <- list()
-  state$starts <- list()
-  state$failures <- character()
+  evaluation <- 0L
+  search_path <- list()
+  start_diagnostics <- list()
 
+  # Fit one candidate and record its search diagnostics.
   evaluate <- function(active_groups, size, phase, step, candidate) {
-    state$evaluation <- state$evaluation + 1L
+    evaluation <<- evaluation + 1L
     indices <- unlist(prepared$groups[active_groups], use.names = FALSE)
     x_candidate <- prepared$x[, indices, drop = FALSE]
+
     if (isTRUE(control$progress)) {
       message(sprintf(
         "[%s %d] candidate %d: size = %d, inputs = %s",
         phase,
         step,
-        state$evaluation,
+        evaluation,
         size,
         paste(prepared$group_names[active_groups], collapse = ", ")
       ))
     }
+
     fitted <- .fit_nnet_multistart(
       x = x_candidate,
       y = prepared$y,
@@ -368,15 +369,17 @@ select_nnet.default <- function(x, y, ..., max_size, n_starts = 5L,
       maxit = control$maxit,
       nnet_args = nnet_args
     )
-    state$starts[[length(state$starts) + 1L]] <- transform(
+
+    start_diagnostics[[length(start_diagnostics) + 1L]] <<- transform(
       fitted$starts,
-      evaluation = state$evaluation,
+      evaluation = evaluation,
       phase = phase,
       step = step,
       candidate = candidate
     )
-    state$path[[length(state$path) + 1L]] <- data.frame(
-      evaluation = state$evaluation,
+
+    search_path[[length(search_path) + 1L]] <<- data.frame(
+      evaluation = evaluation,
       phase = phase,
       step = as.integer(step),
       candidate = candidate,
@@ -398,48 +401,75 @@ select_nnet.default <- function(x, y, ..., max_size, n_starts = 5L,
       size = as.integer(size),
       fit = fitted$fit,
       value = fitted$value,
-      evaluation = state$evaluation
+      evaluation = evaluation
     )
   }
 
+  # Phase 1: select the hidden-layer size with all input terms present.
   all_groups <- seq_along(prepared$groups)
-  hidden_candidates <- lapply(seq_len(control$max_size), function(size) {
-    evaluate(all_groups, size, "hidden", 1L, paste0("size_", size))
-  })
-  current <- .best_selection_candidate(hidden_candidates, "initial hidden-layer search")
+  hidden_candidates <- vector("list", control$max_size)
 
+  for (size in seq_len(control$max_size)) {
+    hidden_candidates[[size]] <- evaluate(
+      active_groups = all_groups,
+      size = size,
+      phase = "hidden",
+      step = 1L,
+      candidate = paste0("size_", size)
+    )
+  }
+
+  current <- .best_selection_candidate(
+    hidden_candidates,
+    "initial hidden-layer search"
+  )
+
+  # Phase 2: remove one term at a time while the criterion improves.
   step <- 0L
   repeat {
     step <- step + 1L
-    if (length(current$active_groups) <= 1L) break
-    removal_candidates <- lapply(current$active_groups, function(group) {
-      active <- setdiff(current$active_groups, group)
-      evaluate(
-        active,
-        current$size,
-        "input",
-        step,
-        paste0("remove_", prepared$group_names[group])
+    if (length(current$active_groups) <= 1L) {
+      break
+    }
+
+    removal_candidates <- vector("list", length(current$active_groups))
+
+    for (i in seq_along(current$active_groups)) {
+      group <- current$active_groups[i]
+      removal_candidates[[i]] <- evaluate(
+        active_groups = setdiff(current$active_groups, group),
+        size = current$size,
+        phase = "input",
+        step = step,
+        candidate = paste0("remove_", prepared$group_names[group])
       )
-    })
+    }
+
     proposed <- .best_selection_candidate(removal_candidates, "input-removal search")
-    if (!.criterion_improves(proposed$value, current$value)) break
+    if (!.criterion_improves(proposed$value, current$value)) {
+      break
+    }
     current <- proposed
   }
 
+  # Phase 3: alternate a local hidden-layer step with an input-layer step.
   fine_step <- 0L
   repeat {
     fine_step <- fine_step + 1L
     sizes <- unique(pmax(1L, current$size + c(-1L, 0L, 1L)))
-    hidden_neighbours <- lapply(sizes, function(size) {
-      evaluate(
-        current$active_groups,
-        size,
-        "fine_hidden",
-        fine_step,
-        paste0("size_", size)
+
+    hidden_neighbours <- vector("list", length(sizes))
+    for (i in seq_along(sizes)) {
+      size <- sizes[i]
+      hidden_neighbours[[i]] <- evaluate(
+        active_groups = current$active_groups,
+        size = size,
+        phase = "fine_hidden",
+        step = fine_step,
+        candidate = paste0("size_", size)
       )
-    })
+    }
+
     proposed_hidden <- .best_selection_candidate(
       hidden_neighbours,
       "fine-tuning hidden-layer search"
@@ -450,43 +480,54 @@ select_nnet.default <- function(x, y, ..., max_size, n_starts = 5L,
     }
     current <- proposed_hidden
 
+    # Once the hidden layer changes, compare every one-term removal and
+    # addition around the updated model.
     moves <- list()
+
     if (length(current$active_groups) > 1L) {
-      moves <- c(moves, lapply(current$active_groups, function(group) {
-        evaluate(
-          setdiff(current$active_groups, group),
-          current$size,
-          "fine_input",
-          fine_step,
-          paste0("remove_", prepared$group_names[group])
+      for (group in current$active_groups) {
+        moves[[length(moves) + 1L]] <- evaluate(
+          active_groups = setdiff(current$active_groups, group),
+          size = current$size,
+          phase = "fine_input",
+          step = fine_step,
+          candidate = paste0("remove_", prepared$group_names[group])
         )
-      }))
+      }
     }
+
     excluded <- setdiff(all_groups, current$active_groups)
     if (length(excluded)) {
-      moves <- c(moves, lapply(excluded, function(group) {
-        evaluate(
-          sort(c(current$active_groups, group)),
-          current$size,
-          "fine_input",
-          fine_step,
-          paste0("add_", prepared$group_names[group])
+      for (group in excluded) {
+        moves[[length(moves) + 1L]] <- evaluate(
+          active_groups = sort(c(current$active_groups, group)),
+          size = current$size,
+          phase = "fine_input",
+          step = fine_step,
+          candidate = paste0("add_", prepared$group_names[group])
         )
-      }))
+      }
     }
-    if (!length(moves)) break
+
+    if (!length(moves)) {
+      break
+    }
+
     proposed_input <- .best_selection_candidate(moves, "fine-tuning input search")
-    if (!.criterion_improves(proposed_input$value, current$value)) break
+    if (!.criterion_improves(proposed_input$value, current$value)) {
+      break
+    }
     current <- proposed_input
   }
 
   if (is.null(current$fit) || !is.finite(current$value)) {
     stop("No candidate model converged successfully.", call. = FALSE)
   }
-  path <- do.call(rbind, state$path)
+
+  path <- do.call(rbind, search_path)
   path$selected[path$evaluation == current$evaluation] <- TRUE
   rownames(path) <- NULL
-  starts <- do.call(rbind, state$starts)
+  starts <- do.call(rbind, start_diagnostics)
   rownames(starts) <- NULL
 
   selected_groups <- current$active_groups

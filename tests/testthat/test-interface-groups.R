@@ -1,4 +1,4 @@
-test_that("the original fit is retained and prediction delegates to nnet", {
+test_that("statnnet retains the nnet fit and its predictions", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -10,7 +10,7 @@ test_that("the original fit is retained and prediction delegates to nnet", {
   expect_equal(predict(model, newdata = newdata), predict(fit, newdata = newdata))
 })
 
-test_that("fitted formula transformations are retained for new data", {
+test_that("formula transformations are retained for new data", {
   set.seed(4110)
   data <- data.frame(y = stats::rnorm(80), x = stats::rnorm(80))
   data$y <- 0.5 + data$x - 0.2 * data$x^2 + stats::rnorm(80, sd = 0.3)
@@ -34,7 +34,7 @@ test_that("fitted formula transformations are retained for new data", {
   )
 })
 
-test_that("factor columns are grouped from model-matrix assignments", {
+test_that("factor columns follow model-matrix groups", {
   data <- make_gaussian_data()
   contrasts(data$f) <- contr.sum(3)
   fit <- fit_gaussian(data)
@@ -54,7 +54,7 @@ test_that("factor columns are grouped from model-matrix assignments", {
   )
 })
 
-test_that("grouped Wald calculations use effective degrees of freedom", {
+test_that("grouped Wald tests use effective degrees of freedom", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -71,7 +71,7 @@ test_that("grouped Wald calculations use effective degrees of freedom", {
   expect_equal(result$effective_df[result$term == "x1"], expected_df)
 })
 
-test_that("unsupported nnet structures and backends fail early", {
+test_that("unsupported nnet fits are rejected", {
   data <- make_gaussian_data(40)
   x <- model.matrix(y ~ x1 + x2, data)[, -1, drop = FALSE]
   set.seed(4106)
@@ -113,7 +113,7 @@ test_that("non-unit case weights are rejected", {
   )
 })
 
-test_that("non-convergence disables covariance summaries", {
+test_that("non-converged fits have no covariance summaries", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   fit$convergence <- 1L
@@ -125,7 +125,7 @@ test_that("non-convergence disables covariance summaries", {
   expect_true(all(is.na(anova(model)$p_value)))
 })
 
-test_that("summary and anova return structured objects", {
+test_that("summary and anova return structured results", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -137,7 +137,7 @@ test_that("summary and anova return structured objects", {
   expect_true(is.data.frame(result$parameter_wald))
 })
 
-test_that("anova print omits a redundant all-ok status column", {
+test_that("anova omits the status column when all groups pass", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -149,7 +149,7 @@ test_that("anova print omits a redundant all-ok status column", {
   expect_false(any(grepl("status", printed, fixed = TRUE)))
 })
 
-test_that("summary uses fast observed-row effects by default", {
+test_that("summary defaults to observed-row effects", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -172,7 +172,7 @@ test_that("summary uses fast observed-row effects by default", {
   expect_equal(result$pce$estimate[result$pce$variable == "x1"], expected)
 })
 
-test_that("summary effect modes preserve exact PCEs or omit effects", {
+test_that("summary supports partial effects and no effects", {
   data <- make_gaussian_data(40)
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))

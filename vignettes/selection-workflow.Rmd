@@ -11,10 +11,9 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 ```
 
-The primary `statnnet` workflow selects a parsimonious network before
-constructing regression-style summaries. This vignette uses the bundled Auto
-MPG data and keeps the selection settings deliberately small so that it can be
-rebuilt quickly during package checks.
+The usual `statnnet` workflow selects a parsimonious network before constructing
+regression-style summaries. The example uses the bundled Auto MPG data and a
+small search so that the vignette can be rebuilt quickly.
 
 ```{r setup, message = FALSE}
 library(nnet)
@@ -57,27 +56,25 @@ selection
 summary(selection)
 ```
 
-The complete evaluated path remains available for auditing or plotting.
+The evaluated search path is retained and can be inspected or plotted.
 
 ```{r path, fig.alt = "BIC values for the candidate neural-network models evaluated during selection."}
 head(selection_path(selection))
 plot(selection)
 ```
 
-## Separate numerical diagnostics from calibration
+## Check the numerical diagnostics
 
-Converting the result directly with `statnnet()` validates the selected native
-`nnet` fit and reports whether covariance-based summaries are numerically
-available. The selection itself is unpenalised; a converged fit can still have
-poorly conditioned curvature.
+Converting the result with `statnnet()` checks the selected `nnet` fit and
+reports whether covariance-based summaries are numerically available. Selection
+is unpenalised, and a converged fit may still have poorly conditioned curvature.
 
-Numerical availability is a computational diagnostic, not evidence that Wald
-p-values or delta-method intervals have their nominal frequentist coverage.
-The Gaussian-response simulations motivating the interface favour
-parsimonious networks, including a hidden layer no larger than the fitted input
-layer. `statnnet()` records this comparison and warns when there are more
-hidden nodes than input nodes. The reported inferential quantities remain
-approximate and are empirically supported only under the regimes studied.
+Numerical availability does not show that Wald p-values or delta-method
+intervals have their nominal coverage. The Gaussian simulations motivating the
+method favour parsimonious networks, including a hidden layer no larger than
+the fitted input layer. `statnnet()` records this comparison and warns when
+there are more hidden nodes than input nodes. The inferential quantities remain
+approximate and conditional on the setting studied.
 
 The package can calculate the same summaries for supported binary-response
 fits, but the package authors have not established their frequentist

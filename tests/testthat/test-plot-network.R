@@ -1,4 +1,4 @@
-test_that("plot_network maps every multi-node edge to the fitted nnet weights", {
+test_that("network edges map to the fitted weights", {
   data <- make_gaussian_data(120)
   fit <- fit_gaussian(data, size = 2L)
   model <- suppressWarnings(statnnet(fit, data = data))

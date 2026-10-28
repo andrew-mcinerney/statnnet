@@ -22,7 +22,7 @@ test_that("analytic prediction gradients agree with finite differences", {
   expect_equal(unname(analytic), unname(numerical), tolerance = 1e-6)
 })
 
-test_that("binary PCE is the direct zero-to-one partial-dependence contrast", {
+test_that("binary PCE compares zero with one", {
   set.seed(4107)
   data <- data.frame(
     y = stats::rnorm(100),
@@ -54,7 +54,7 @@ test_that("binary PCE is the direct zero-to-one partial-dependence contrast", {
   )
 })
 
-test_that("delta-method PCE standard errors match direct matrix calculations", {
+test_that("delta-method PCE errors match direct calculations", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -88,7 +88,7 @@ test_that("simulation intervals are reproducible with a fixed seed", {
   expect_equal(first, second)
 })
 
-test_that("default continuous PCE grids remain within observed support", {
+test_that("default PCE grids stay within the observed range", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -128,7 +128,7 @@ test_that("factor PCEs preserve fitted levels and contrasts", {
   expect_equal(result$contrast, c("b - a", "c - a"))
 })
 
-test_that("continuous by predictors condition PCE curves at mean plus or minus one SD", {
+test_that("continuous conditioning uses the mean plus or minus one SD", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -173,7 +173,7 @@ test_that("continuous by predictors condition PCE curves at mean plus or minus o
   }
 })
 
-test_that("binary by predictors condition PCE curves at zero and one", {
+test_that("binary conditioning uses zero and one", {
   set.seed(4108)
   data <- data.frame(
     y = stats::rnorm(100),

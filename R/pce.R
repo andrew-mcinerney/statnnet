@@ -1,16 +1,16 @@
 #' Partial covariate effects for a fitted statnnet model
 #'
-#' Computes finite differences of the partial-dependence function. These are
-#' descriptive summaries of the fitted response surface, not causal effects.
-#' Correlated predictors can cause evaluations at poorly supported covariate
-#' combinations.
+#' Computes finite differences of the partial-dependence function. The results
+#' describe the fitted response surface and should not be interpreted as causal
+#' effects. For correlated predictors, some evaluated combinations may have
+#' little support in the data.
 #'
 #' @param object A `statnnet` object.
 #' @param variable Name of an original predictor.
 #' @param values Values at which to evaluate a continuous predictor. By
-#'   default, an evenly spaced grid is chosen so that both each baseline value
-#'   and its finite-difference comparison remain within the observed range.
-#'   User-supplied values are used unchanged and may therefore extrapolate.
+#'   default, an evenly spaced grid keeps the baseline and finite-difference
+#'   comparison within the observed range. User-supplied values are used
+#'   unchanged and may extrapolate.
 #' @param d Finite-difference step for a continuous predictor. The default is
 #'   one observed standard deviation. Binary predictors are always compared
 #'   from 0 to 1 and factors against their first level.
@@ -68,6 +68,7 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     stop("`length_out` must be an integer of at least two.", call. = FALSE)
   }
 
+  # Construct the low and high data sets for each requested contrast.
   scenarios <- .pce_scenarios(
     object = object,
     variable = variable,
@@ -82,17 +83,32 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
       stop("`by` is currently supported only for `type = \"curve\"`.", call. = FALSE)
     }
     n_scenarios <- length(scenarios$items)
-    scenarios$items <- unlist(lapply(seq_along(by_spec$values), function(index) {
-      lapply(scenarios$items, function(item) {
+    conditioned_items <- vector(
+      "list",
+      n_scenarios * length(by_spec$values)
+    )
+    item_index <- 1L
+
+    for (by_index in seq_along(by_spec$values)) {
+      for (scenario_index in seq_len(n_scenarios)) {
+        item <- scenarios$items[[scenario_index]]
         item$low <- .set_pce_condition(
-          item$low, variable = by, value = by_spec$values[[index]], object = object
+          item$low,
+          variable = by,
+          value = by_spec$values[[by_index]],
+          object = object
         )
         item$high <- .set_pce_condition(
-          item$high, variable = by, value = by_spec$values[[index]], object = object
+          item$high,
+          variable = by,
+          value = by_spec$values[[by_index]],
+          object = object
         )
-        item
-      })
-    }), recursive = FALSE)
+        conditioned_items[[item_index]] <- item
+        item_index <- item_index + 1L
+      }
+    }
+    scenarios$items <- conditioned_items
     scenarios$metadata <- scenarios$metadata[
       rep(seq_len(nrow(scenarios$metadata)), times = length(by_spec$values)),
       ,
@@ -106,7 +122,11 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     scenarios$metadata$by_label <- rep(by_spec$labels, each = n_scenarios)
     rownames(scenarios$metadata) <- NULL
   }
-  evaluated <- lapply(scenarios$items, function(item) {
+
+  # Evaluate each contrast and its gradient with respect to the weights.
+  evaluated <- vector("list", length(scenarios$items))
+  for (i in seq_along(scenarios$items)) {
+    item <- scenarios$items[[i]]
     x_low <- .build_model_matrix(object, item$low)
     x_high <- .build_model_matrix(object, item$high)
     estimate <- mean(.nn_predict_matrix(
@@ -119,13 +139,31 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     ) - .nn_gradient_matrix(
       x_low, object$weights, object$architecture$hidden, object$response
     ))
-    list(estimate = estimate, gradient = gradient, x_low = x_low, x_high = x_high)
-  })
+    evaluated[[i]] <- list(
+      estimate = estimate,
+      gradient = gradient,
+      x_low = x_low,
+      x_high = x_high
+    )
+  }
+
+  estimates <- numeric(length(evaluated))
+  gradients <- matrix(
+    NA_real_,
+    nrow = length(evaluated),
+    ncol = length(object$weights)
+  )
+  for (i in seq_along(evaluated)) {
+    estimates[[i]] <- evaluated[[i]]$estimate
+    gradients[i, ] <- evaluated[[i]]$gradient
+  }
 
   if (isTRUE(scenarios$collapse_average)) {
-    estimate <- mean(vapply(evaluated, `[[`, numeric(1), "estimate"))
-    gradient <- colMeans(do.call(rbind, lapply(evaluated, `[[`, "gradient")))
+    estimate <- mean(estimates)
+    gradient <- colMeans(gradients)
     evaluated <- list(list(estimate = estimate, gradient = gradient))
+    estimates <- estimate
+    gradients <- matrix(gradient, nrow = 1L)
     metadata <- scenarios$average_metadata
   } else {
     metadata <- scenarios$metadata
@@ -136,7 +174,7 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     contrast = metadata$contrast,
     value = metadata$value,
     step = metadata$step,
-    estimate = vapply(evaluated, `[[`, numeric(1), "estimate"),
+    estimate = estimates,
     std_error = NA_real_,
     conf_low = NA_real_,
     conf_high = NA_real_,
@@ -148,6 +186,7 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     result$by_label <- metadata$by_label
   }
 
+  # Add uncertainty after the point estimates have been calculated.
   covariance_available <- isTRUE(object$diagnostics$covariance_available)
   if (uncertainty != "none" && !covariance_available) {
     warning(
@@ -159,7 +198,6 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
       call. = FALSE
     )
   } else if (uncertainty == "delta") {
-    gradients <- do.call(rbind, lapply(evaluated, `[[`, "gradient"))
     variances <- rowSums((gradients %*% object$covariance) * gradients)
     variance_scale <- max(1, max(abs(variances)))
     invalid <- variances < -object$covariance_tol * variance_scale
@@ -177,25 +215,35 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
       stop("`nsim` must be an integer of at least two.", call. = FALSE)
     }
     simulated_weights <- .simulate_weights(object, nsim = nsim, seed = seed)
-    simulated_effects <- vapply(seq_len(nrow(result)), function(index) {
+    simulated_effects <- matrix(NA_real_, nrow = nsim, ncol = nrow(result))
+
+    for (index in seq_len(nrow(result))) {
       if (isTRUE(scenarios$collapse_average)) {
-        effects <- vapply(scenarios$items, function(item) {
+        effects <- matrix(
+          NA_real_,
+          nrow = nsim,
+          ncol = length(scenarios$items)
+        )
+        for (scenario_index in seq_along(scenarios$items)) {
+          item <- scenarios$items[[scenario_index]]
           x_low <- .build_model_matrix(object, item$low)
           x_high <- .build_model_matrix(object, item$high)
-          .pce_simulated_effects(object, simulated_weights, x_low, x_high)
-        }, numeric(nsim))
-        rowMeans(effects)
+          effects[, scenario_index] <- .pce_simulated_effects(
+            object,
+            simulated_weights,
+            x_low,
+            x_high
+          )
+        }
+        simulated_effects[, index] <- rowMeans(effects)
       } else {
-        .pce_simulated_effects(
+        simulated_effects[, index] <- .pce_simulated_effects(
           object,
           simulated_weights,
           evaluated[[index]]$x_low,
           evaluated[[index]]$x_high
         )
       }
-    }, numeric(nsim))
-    if (is.null(dim(simulated_effects))) {
-      simulated_effects <- matrix(simulated_effects, ncol = 1L)
     }
     alpha <- (1 - level) / 2
     result$std_error <- apply(simulated_effects, 2L, stats::sd)
@@ -401,7 +449,9 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
     if (any(!comparisons %in% levels_used) || any(comparisons == reference)) {
       stop("Categorical `values` must be non-reference fitted levels.", call. = FALSE)
     }
-    items <- lapply(comparisons, function(comparison) {
+    items <- vector("list", length(comparisons))
+    for (i in seq_along(comparisons)) {
+      comparison <- comparisons[[i]]
       low <- data
       high <- data
       low[[variable]] <- factor(
@@ -414,8 +464,8 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
         levels = levels_used,
         ordered = is.ordered(predictor)
       )
-      list(low = low, high = high)
-    })
+      items[[i]] <- list(low = low, high = high)
+    }
     metadata <- data.frame(
       contrast = paste(comparisons, "-", reference),
       value = NA_real_,
@@ -486,13 +536,15 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
   if (!is.numeric(values) || any(!is.finite(values))) {
     stop("Continuous `values` must be finite numbers.", call. = FALSE)
   }
-  items <- lapply(values, function(value) {
+  items <- vector("list", length(values))
+  for (i in seq_along(values)) {
+    value <- values[[i]]
     low <- data
     high <- data
     low[[variable]] <- value
     high[[variable]] <- value + d
-    list(low = low, high = high)
-  })
+    items[[i]] <- list(low = low, high = high)
+  }
   metadata <- data.frame(
     contrast = NA_character_,
     value = values,
@@ -541,11 +593,16 @@ pce <- function(object, variable, values = NULL, d = NULL, length_out = 101L,
 }
 
 .pce_simulated_effects <- function(object, simulated_weights, x_low, x_high) {
-  apply(simulated_weights, 1L, function(weights) {
-    mean(.nn_predict_matrix(
+  effects <- numeric(nrow(simulated_weights))
+
+  for (i in seq_len(nrow(simulated_weights))) {
+    weights <- simulated_weights[i, ]
+    effects[[i]] <- mean(.nn_predict_matrix(
       x_high, weights, object$architecture$hidden, object$response
     )) - mean(.nn_predict_matrix(
       x_low, weights, object$architecture$hidden, object$response
     ))
-  })
+  }
+
+  effects
 }

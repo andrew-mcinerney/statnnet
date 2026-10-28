@@ -48,19 +48,17 @@ An object of class \code{"statnnet"} containing the original fit,
 reconstructed model information, covariance calculations, and diagnostics.
 }
 \description{
-\code{statnnet()} validates a deliberately narrow class of models fitted by
-\code{\link[nnet:nnet]{nnet::nnet()}} and retains the original fit. It can also augment the final
-native \code{nnet} fit retained by \code{\link[=select_nnet]{select_nnet()}}.
+\code{statnnet()} adds covariance estimates, Wald summaries, and covariate-effect
+calculations to a supported model fitted by \code{\link[nnet:nnet]{nnet::nnet()}}. The original
+fit is retained. A model selected by \code{\link[=select_nnet]{select_nnet()}} can also be supplied.
 }
 \details{
-A covariance matrix marked as available has passed numerical checks for the
-fitted Hessian; this does not establish frequentist calibration of Wald
-p-values or delta-method intervals. The diagnostics flag networks with more
-hidden nodes than fitted input nodes because the Gaussian-response simulation
-evidence motivating these summaries supports parsimonious architectures.
-Binary-response summaries are implemented computationally, but their
-frequentist calibration has not been established by the package authors and
-should be treated as exploratory.
+Covariance calculations are returned only when the fitted Hessian passes the
+numerical checks. Wald tests and delta-method intervals are still
+approximations conditional on the fitted architecture and local solution.
+A warning is given when the hidden layer is larger than the fitted input
+layer. Binary-response summaries should be treated as exploratory because
+their frequentist calibration has not been studied by the package authors.
 }
 \examples{
 data("auto_mpg", package = "statnnet")

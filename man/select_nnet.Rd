@@ -67,17 +67,17 @@ native \code{nnet} fit, selected terms or columns, the full search path, and
 start-level convergence diagnostics.
 }
 \description{
-\code{select_nnet()} implements the information-criterion procedure of
-McInerney and Burke: hidden-layer size selection, backward input selection,
-and alternating fine-tuning of the hidden and input layers. Candidate models
-are fitted from several random initialisations using \code{\link[nnet:nnet]{nnet::nnet()}}.
+\code{select_nnet()} implements the information-criterion procedure of McInerney
+and Burke. It first selects the hidden-layer size, applies backward input
+selection, and then alternates one-step changes to the hidden and input
+layers. Each candidate is fitted from several random initialisations using
+\code{\link[nnet:nnet]{nnet::nnet()}}.
 }
 \details{
-The published procedure is currently implemented only for unpenalised
-Gaussian regression. In the formula interface, complete right-hand-side
-terms are selected together, so all design-matrix columns for a factor or a
-transformed term enter or leave the model as a group. In the matrix
-interface, each column is a selectable input.
+Selection is available for unpenalised Gaussian regression. With a formula,
+complete right-hand-side terms are selected together: all columns belonging
+to a factor or transformed term enter or leave as a group. With a matrix,
+columns are selected individually.
 }
 \examples{
 set.seed(1)

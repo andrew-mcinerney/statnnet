@@ -50,8 +50,12 @@ plot.statnnet <- function(x, variable = NULL,
     stop("`by` must be different from every plotted `variable`.", call. = FALSE)
   }
 
-  plotted <- lapply(variable, function(name) {
-    pce(
+  plotted <- vector("list", length(variable))
+  names(plotted) <- variable
+
+  for (i in seq_along(variable)) {
+    name <- variable[[i]]
+    plotted[[i]] <- pce(
       x,
       variable = name,
       uncertainty = uncertainty,
@@ -59,8 +63,7 @@ plot.statnnet <- function(x, variable = NULL,
       by = by,
       ...
     )
-  })
-  names(plotted) <- variable
+  }
 
   old_par <- graphics::par(no.readonly = TRUE)
   on.exit(graphics::par(old_par), add = TRUE)
@@ -76,7 +79,10 @@ plot.statnnet <- function(x, variable = NULL,
     conditioned <- !is.null(by)
     if (conditioned) {
       group_labels <- unique(values$by_label)
-      group_rows <- lapply(group_labels, function(label) which(values$by_label == label))
+      group_rows <- vector("list", length(group_labels))
+      for (i in seq_along(group_labels)) {
+        group_rows[[i]] <- which(values$by_label == group_labels[[i]])
+      }
       colours <- c("#0072B2", "#D55E00")
       line_types <- c(1, 2)
       limits <- range(

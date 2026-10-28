@@ -1,17 +1,15 @@
 #' Augment a fitted nnet model with statistical summaries
 #'
-#' `statnnet()` validates a deliberately narrow class of models fitted by
-#' [nnet::nnet()] and retains the original fit. It can also augment the final
-#' native `nnet` fit retained by [select_nnet()].
+#' `statnnet()` adds covariance estimates, Wald summaries, and covariate-effect
+#' calculations to a supported model fitted by [nnet::nnet()]. The original
+#' fit is retained. A model selected by [select_nnet()] can also be supplied.
 #'
-#' A covariance matrix marked as available has passed numerical checks for the
-#' fitted Hessian; this does not establish frequentist calibration of Wald
-#' p-values or delta-method intervals. The diagnostics flag networks with more
-#' hidden nodes than fitted input nodes because the Gaussian-response simulation
-#' evidence motivating these summaries supports parsimonious architectures.
-#' Binary-response summaries are implemented computationally, but their
-#' frequentist calibration has not been established by the package authors and
-#' should be treated as exploratory.
+#' Covariance calculations are returned only when the fitted Hessian passes the
+#' numerical checks. Wald tests and delta-method intervals are still
+#' approximations conditional on the fitted architecture and local solution.
+#' A warning is given when the hidden layer is larger than the fitted input
+#' layer. Binary-response summaries should be treated as exploratory because
+#' their frequentist calibration has not been studied by the package authors.
 #'
 #' @param object A fitted object inheriting from `"nnet"`, or a
 #'   `"statnnet_selection"` object returned by [select_nnet()].
@@ -148,6 +146,7 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
     }
   }
 
+  # Reconstruct the data used by nnet before calculating any summaries.
   reconstructed <- .reconstruct_nnet_data(
     object = object,
     formula = formula,
@@ -156,6 +155,7 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
     evaluation_environment = parent.frame()
   )
 
+  # Check that the reconstructed design matrix gives the fitted predictions.
   weights <- as.numeric(object$wts)
   fitted_internal <- .nn_predict_matrix(
     reconstructed$x,
@@ -174,6 +174,7 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
     )
   }
 
+  # Reconstruct the fitting criterion and its curvature.
   objective <- .validate_nnet_objective(
     object = object,
     y = reconstructed$y,
@@ -190,6 +191,7 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
     tolerance = covariance_tol
   )
 
+  # Use nnet's coefficient labels when they are available.
   parameter_names <- names(stats::coef(object))
   if (is.null(parameter_names) || length(parameter_names) != length(weights)) {
     parameter_names <- paste0("weight_", seq_along(weights))
@@ -212,6 +214,7 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
     n_hidden = object$n[2L]
   )
 
+  # Collect numerical and model-architecture diagnostics in one place.
   diagnostics <- curvature$diagnostics
   diagnostics$convergence <- object$convergence
   diagnostics$objective_agrees <- objective$agrees
@@ -242,6 +245,7 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
     curvature$shrinkage <- NULL
   }
 
+  # Keep the original fit so the usual nnet methods remain available.
   result <- list(
     fit = object,
     call = match.call(),
@@ -276,6 +280,7 @@ statnnet.nnet <- function(object, formula = NULL, data = NULL,
   )
   class(result) <- "statnnet"
 
+  # Warn once, after all diagnostic checks have been completed.
   diagnostic_warnings <- character()
   if (!isTRUE(diagnostics$covariance_available)) {
     diagnostic_warnings <- c(

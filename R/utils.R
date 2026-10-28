@@ -184,15 +184,18 @@
 }
 
 .model_xlevels <- function(model_frame) {
-  xlevels <- lapply(model_frame, function(variable) {
+  xlevels <- vector("list", length(model_frame))
+  names(xlevels) <- names(model_frame)
+
+  for (i in seq_along(model_frame)) {
+    variable <- model_frame[[i]]
     if (is.factor(variable)) {
-      return(levels(variable))
+      xlevels[[i]] <- levels(variable)
+    } else if (is.character(variable)) {
+      xlevels[[i]] <- levels(factor(variable))
     }
-    if (is.character(variable)) {
-      return(levels(factor(variable)))
-    }
-    NULL
-  })
+  }
+
   xlevels[!vapply(xlevels, is.null, logical(1))]
 }
 
@@ -395,18 +398,28 @@
                               n_inputs, n_hidden) {
   group_ids <- unique(assign)
   group_ids <- group_ids[group_ids > 0L]
-  groups <- lapply(group_ids, function(group_id) {
+  groups <- vector("list", length(group_ids))
+
+  for (i in seq_along(group_ids)) {
+    group_id <- group_ids[[i]]
     columns <- which(assign == group_id)
-    weight_indices <- sort(unlist(lapply(columns, function(column) {
-      (seq_len(n_hidden) - 1L) * (n_inputs + 1L) + column + 1L
-    })))
-    list(
+    weight_indices <- integer(length(columns) * n_hidden)
+
+    position <- 1L
+    for (column in columns) {
+      indices <- (seq_len(n_hidden) - 1L) * (n_inputs + 1L) + column + 1L
+      weight_indices[position:(position + n_hidden - 1L)] <- indices
+      position <- position + n_hidden
+    }
+
+    groups[[i]] <- list(
       term = term_labels[group_id],
       columns = column_names[columns],
       column_indices = columns,
-      weight_indices = weight_indices
+      weight_indices = sort(weight_indices)
     )
-  })
+  }
+
   names(groups) <- vapply(groups, `[[`, character(1), "term")
   groups
 }

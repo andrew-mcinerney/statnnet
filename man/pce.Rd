@@ -24,9 +24,9 @@ pce(
 \item{variable}{Name of an original predictor.}
 
 \item{values}{Values at which to evaluate a continuous predictor. By
-default, an evenly spaced grid is chosen so that both each baseline value
-and its finite-difference comparison remain within the observed range.
-User-supplied values are used unchanged and may therefore extrapolate.}
+default, an evenly spaced grid keeps the baseline and finite-difference
+comparison within the observed range. User-supplied values are used
+unchanged and may extrapolate.}
 
 \item{d}{Finite-difference step for a continuous predictor. The default is
 one observed standard deviation. Binary predictors are always compared
@@ -55,10 +55,10 @@ one standard deviation. Binary predictors use both fitted levels.}
 A data frame of class \code{"statnnet_pce"}.
 }
 \description{
-Computes finite differences of the partial-dependence function. These are
-descriptive summaries of the fitted response surface, not causal effects.
-Correlated predictors can cause evaluations at poorly supported covariate
-combinations.
+Computes finite differences of the partial-dependence function. The results
+describe the fitted response surface and should not be interpreted as causal
+effects. For correlated predictors, some evaluated combinations may have
+little support in the data.
 }
 \examples{
 data("auto_mpg", package = "statnnet")

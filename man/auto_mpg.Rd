@@ -3,7 +3,7 @@
 \docType{data}
 \name{auto_mpg}
 \alias{auto_mpg}
-\title{Auto MPG Data}
+\title{Auto MPG data}
 \format{
 A data frame with 392 rows and 8 variables:
 \describe{

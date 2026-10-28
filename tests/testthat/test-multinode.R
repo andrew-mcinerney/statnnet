@@ -1,4 +1,4 @@
-test_that("multi-node Gaussian fits preserve prediction and term mappings", {
+test_that("multi-node Gaussian fits preserve predictions and term groups", {
   data <- make_gaussian_data(140)
   fit <- fit_gaussian(data, size = 3L)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -45,7 +45,7 @@ test_that("multi-node binary gradients agree with central differences", {
   expect_equal(unname(analytic), unname(numerical), tolerance = 1e-6)
 })
 
-test_that("multi-node PCE gradients and delta variances are mapped correctly", {
+test_that("multi-node PCE gradients and variances use the correct weights", {
   data <- make_gaussian_data(120)
   fit <- fit_gaussian(data, size = 2L)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -66,7 +66,7 @@ test_that("multi-node PCE gradients and delta variances are mapped correctly", {
   expect_equal(result$std_error, expected_se, tolerance = 1e-10)
 })
 
-test_that("ill-conditioned multi-node curvature disables covariance summaries", {
+test_that("ill-conditioned multi-node fits have no covariance summaries", {
   data <- make_gaussian_data(100)
   fit <- fit_gaussian(data, decay = 0.1, size = 2L)
   n_parameters <- length(fit$wts)
@@ -81,7 +81,7 @@ test_that("ill-conditioned multi-node curvature disables covariance summaries", 
   expect_true(all(is.na(anova(model)$p_value)))
 })
 
-test_that("oversized hidden layers trigger a calibration warning", {
+test_that("a hidden layer larger than the input layer warns", {
   data <- make_gaussian_data(140)[c("y", "x1")]
   set.seed(4111)
   fit <- nnet::nnet(

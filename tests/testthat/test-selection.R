@@ -10,7 +10,7 @@ make_selection_data <- function(n = 80L) {
   data
 }
 
-test_that("select_nnet returns a native fit and auditable search path", {
+test_that("selection stores the fitted model and search history", {
   data <- make_selection_data()
   selection <- select_nnet(
     y ~ x1 + x2 + f,
@@ -45,7 +45,7 @@ test_that("select_nnet returns a native fit and auditable search path", {
   expect_true(all(selection$start_diagnostics$evaluation %in% path$evaluation))
 })
 
-test_that("selection is reproducible and prints progress when requested", {
+test_that("fixed seeds reproduce selection", {
   data <- make_selection_data(60)
   first <- select_nnet(
     y ~ x1 + x2,
@@ -86,7 +86,7 @@ test_that("selection is reproducible and prints progress when requested", {
   expect_true(any(grepl("candidate", progress_messages, fixed = TRUE)))
 })
 
-test_that("formula selection keeps factor columns in one selectable term", {
+test_that("factor columns are selected together", {
   data <- make_selection_data()
   prepared <- statnnet:::.prepare_selection_formula(
     y ~ x1 + f,
@@ -109,7 +109,7 @@ test_that("formula selection keeps factor columns in one selectable term", {
   expect_false(any(grepl("fb|fc", selection_path(selection)$included_terms)))
 })
 
-test_that("selected factor models predict with retained levels and contrasts", {
+test_that("factor predictions retain levels and contrasts", {
   set.seed(5109)
   data <- data.frame(
     f = factor(rep(c("a", "b", "c"), 30L))
@@ -134,7 +134,7 @@ test_that("selected factor models predict with retained levels and contrasts", {
   )
 })
 
-test_that("selected transformed terms retain their prediction basis", {
+test_that("transformed terms retain their prediction basis", {
   set.seed(5111)
   data <- data.frame(x = seq(-2, 2, length.out = 80L))
   data$y <- 0.5 + data$x - 0.8 * data$x^2 + stats::rnorm(80L, sd = 0.2)
@@ -156,7 +156,7 @@ test_that("selected transformed terms retain their prediction basis", {
   )
 })
 
-test_that("selection results convert to statnnet objects", {
+test_that("selected models convert to statnnet objects", {
   data <- make_selection_data(90)
   selection <- select_nnet(
     y ~ x1 + x2,
@@ -189,7 +189,7 @@ test_that("selection results convert to statnnet objects", {
   )))
 })
 
-test_that("selection methods delegate to the retained fit", {
+test_that("selection methods use the retained fit", {
   data <- make_selection_data(70)
   selection <- select_nnet(
     y ~ x1 + x2,
@@ -230,7 +230,7 @@ test_that("selection methods delegate to the retained fit", {
   expect_equal(plotted, selection_path(selection))
 })
 
-test_that("matrix selection uses columns as selectable inputs", {
+test_that("matrix inputs are selected by column", {
   data <- make_selection_data(70)
   x <- as.matrix(data[c("x1", "x2")])
   selection <- select_nnet(
@@ -252,7 +252,7 @@ test_that("matrix selection uses columns as selectable inputs", {
   expect_s3_class(suppressWarnings(statnnet(selection)), "statnnet")
 })
 
-test_that("matrix selection preserves rows after complete-case filtering", {
+test_that("matrix input omits incomplete rows consistently", {
   data <- make_selection_data(50)
   x <- as.matrix(data[c("x1", "x2")])
   x[7, 2] <- NA_real_
@@ -270,7 +270,7 @@ test_that("matrix selection preserves rows after complete-case filtering", {
   expect_s3_class(suppressWarnings(statnnet(selection)), "statnnet")
 })
 
-test_that("unsupported selection requests fail clearly", {
+test_that("invalid selection requests are rejected", {
   data <- make_selection_data(40)
   class_data <- transform(data, y = factor(ifelse(y > median(y), "a", "b")))
 

@@ -35,7 +35,7 @@ test_that("binary entropy objectives are reconstructed exactly", {
   }
 })
 
-test_that("penalty removal and likelihood scaling follow the documented convention", {
+test_that("penalty removal and likelihood scaling use the stated convention", {
   data <- make_gaussian_data()
   decay <- 0.2
   fit <- fit_gaussian(data, decay = decay)
@@ -60,7 +60,7 @@ test_that("penalty removal and likelihood scaling follow the documented conventi
   )
 })
 
-test_that("stored nnet Hessian agrees with a numerical objective Hessian", {
+test_that("the stored Hessian agrees with a numerical Hessian", {
   set.seed(4105)
   data <- data.frame(y = stats::rnorm(30), x = stats::rnorm(30))
   fit <- nnet::nnet(
@@ -97,7 +97,7 @@ test_that("stored nnet Hessian agrees with a numerical objective Hessian", {
   expect_equal(unname(fit$Hessian), numerical, tolerance = 2e-4)
 })
 
-test_that("covariance is symmetric and zero decay reduces to inverse information", {
+test_that("covariance is symmetric and unpenalised covariance inverts information", {
   data <- make_gaussian_data(160)
   fit <- fit_gaussian(data, decay = 0)
   model <- suppressWarnings(statnnet(fit, data = data))
@@ -123,7 +123,7 @@ test_that("singular curvature prevents covariance reporting", {
   expect_error(vcov(model), "unavailable")
 })
 
-test_that("a missing stored Hessian is recomputed from the original data", {
+test_that("a missing Hessian is recomputed from the training data", {
   data <- make_gaussian_data()
   fit <- fit_gaussian(data, Hess = FALSE)
   model <- suppressWarnings(statnnet(fit, data = data))

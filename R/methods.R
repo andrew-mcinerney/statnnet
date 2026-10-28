@@ -122,7 +122,9 @@ anova.statnnet <- function(object, ...) {
   if (length(list(...)) > 0L) {
     stop("Model-comparison arguments are not supported by `anova.statnnet()`.", call. = FALSE)
   }
-  rows <- lapply(object$groups, function(group) {
+  rows <- vector("list", length(object$groups))
+  for (i in seq_along(object$groups)) {
+    group <- object$groups[[i]]
     indices <- group$weight_indices
     effective_df <- NA_real_
     statistic <- NA_real_
@@ -154,7 +156,7 @@ anova.statnnet <- function(object, ...) {
       }
     }
 
-    data.frame(
+    rows[[i]] <- data.frame(
       term = group$term,
       model_columns = paste(group$columns, collapse = ", "),
       n_weights = length(indices),
@@ -164,7 +166,8 @@ anova.statnnet <- function(object, ...) {
       status = status,
       stringsAsFactors = FALSE
     )
-  })
+  }
+
   result <- if (length(rows)) {
     do.call(rbind, rows)
   } else {
@@ -213,27 +216,30 @@ summary.statnnet <- function(object, weights = FALSE, level = 0.95,
   effects <- match.arg(effects)
 
   uncertainty <- if (isTRUE(object$diagnostics$covariance_available)) "delta" else "none"
-  pce_rows <- switch(
-    effects,
-    none = list(),
-    rowwise = lapply(object$variables, function(variable) {
-      .average_predictive_effect(
-        object,
-        variable = variable,
-        uncertainty = uncertainty,
-        level = level
-      )
-    }),
-    partial = lapply(object$variables, function(variable) {
-      pce(
-        object,
-        variable = variable,
-        type = "average",
-        uncertainty = uncertainty,
-        level = level
-      )
-    })
-  )
+  pce_rows <- list()
+  if (effects != "none") {
+    pce_rows <- vector("list", length(object$variables))
+    for (i in seq_along(object$variables)) {
+      variable <- object$variables[[i]]
+
+      if (effects == "rowwise") {
+        pce_rows[[i]] <- .average_predictive_effect(
+          object,
+          variable = variable,
+          uncertainty = uncertainty,
+          level = level
+        )
+      } else {
+        pce_rows[[i]] <- pce(
+          object,
+          variable = variable,
+          type = "average",
+          uncertainty = uncertainty,
+          level = level
+        )
+      }
+    }
+  }
   pce_table <- if (length(pce_rows)) do.call(rbind, pce_rows) else data.frame()
   rownames(pce_table) <- NULL
 

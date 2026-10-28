@@ -3,10 +3,10 @@
 
 # statnnet
 
-`statnnet` provides statistically based selection and regression-style
-interpretation for small, single-hidden-layer neural networks fitted
-with `nnet`. It can select an unpenalised Gaussian model using
-information criteria, or augment an existing supported `nnet` fit.
+`statnnet` provides model selection and regression-style summaries for
+small, single-hidden-layer neural networks fitted with `nnet`. It can
+select an unpenalised Gaussian model by information criterion or work
+from an existing supported `nnet` fit.
 
 ## Installation
 
@@ -17,9 +17,9 @@ pak::pak("andrew-mcinerney/statnnet")
 
 ## Basic workflow
 
-The primary workflow chooses input terms and hidden-layer size using
-multiple random initialisations, then augments the selected fit with
-diagnostics and regression-style summaries:
+The main workflow chooses the input terms and hidden-layer size from
+multiple random starts, then adds diagnostics and regression-style
+summaries:
 
 ``` r
 library(nnet)
@@ -109,19 +109,19 @@ These summaries describe the fitted response function. They are
 conditional on the chosen network and are not post-selection or causal
 inference.
 
-## Inference guardrails
+## Inference and diagnostics
 
-An available covariance matrix means that the fitted Hessian passed the
-package’s numerical checks; it does not establish calibrated Wald tests
-or confidence intervals. The Gaussian-response simulation evidence
-motivating these summaries supports small, parsimonious networks,
-including keeping the hidden layer no larger than the fitted input
-layer. `statnnet()` records the hidden-to-input ratio and warns when the
-number of hidden nodes exceeds the number of fitted input nodes.
+When a covariance matrix is available, the fitted Hessian has passed the
+package’s numerical checks. This alone does not establish the
+calibration of Wald tests or confidence intervals. The Gaussian
+simulation results behind the method support small, parsimonious
+networks, including a hidden layer no larger than the fitted input
+layer. `statnnet()` records this ratio and warns when the hidden layer is
+larger.
 
-All Wald p-values and delta-method intervals are approximate and
-conditional on the fitted architecture, penalty, and local optimum. The
-cited calibration studies concern continuous Gaussian responses.
-Binary-response calculations are available for exploring a fitted
-response surface, but their frequentist calibration has not been
-established by the package authors.
+Wald p-values and delta-method intervals are approximate and conditional
+on the architecture, penalty, and local optimum. The cited calibration
+studies concern continuous Gaussian responses. Binary-response
+calculations are provided for exploring a fitted response surface, but
+their frequentist calibration has not been established by the package
+authors.
