@@ -42,16 +42,13 @@
 <li>Added <code>statnnet_selection</code> objects with print, summary, coefficient, prediction, plot, and <code><a href="../reference/selection_path.html">selection_path()</a></code> methods.</li>
 <li>
 <code><a href="../reference/statnnet.html">statnnet()</a></code> now accepts a model-selection result and records that subsequent uncertainty summaries are conditional on the selected model.</li>
-<li>Renamed <code>plotnn()</code> to <code><a href="../reference/plot_network.html">plot_network()</a></code>.</li>
-<li>Refactored the package as an <code>nnet</code>-only statistical companion.</li>
-<li>Renamed the constructor from <code>interpretnn()</code> to <code><a href="../reference/statnnet.html">statnnet()</a></code> so it matches the package name. This is a breaking API change.</li>
+<li>Added <code><a href="../reference/plot_network.html">plot_network()</a></code> for visualising fitted network weights and inferential annotations.</li>
 <li>
 <code><a href="../reference/statnnet.html">statnnet()</a></code> now retains and validates an existing fitted <code>nnet</code> object.</li>
 <li>Added explicit objective, Hessian, covariance, convergence, and conditioning diagnostics.</li>
 <li>Added inferential-scope diagnostics: <code><a href="../reference/statnnet.html">statnnet()</a></code> now warns when hidden nodes outnumber fitted input nodes and flags binary-response calibration as unvalidated rather than equating numerical invertibility with calibration.</li>
 <li>Added structured grouped Wald summaries and partial covariate effects.</li>
 <li>Replaced the legacy Boston data and examples with the openly licensed Auto MPG data, including a reproducible data-preparation script and provenance.</li>
-<li>Removed other neural-network backends.</li>
 </ul></div>
   </main></div>
 
