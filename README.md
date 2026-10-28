@@ -23,7 +23,6 @@ summaries:
 
 ``` r
 library(nnet)
-#> Warning: package 'nnet' was built under R version 4.5.3
 library(statnnet)
 
 data("auto_mpg", package = "statnnet")
@@ -109,6 +108,15 @@ These summaries describe the fitted response function. They are
 conditional on the chosen network and are not post-selection or causal
 inference.
 
+## Citation
+
+Run `citation("statnnet")` for formatted references and BibTeX entries.
+If you use `select_nnet()` for input or hidden-layer selection, cite
+McInerney and Burke (2025). If you use covariance estimates, Wald
+summaries, grouped tests, or covariate-effect methods, cite McInerney
+and Burke (2026). Analyses using both parts of the package should cite
+both papers.
+
 ## Inference and diagnostics
 
 When a covariance matrix is available, the fitted Hessian has passed the
@@ -116,8 +124,8 @@ package’s numerical checks. This alone does not establish the
 calibration of Wald tests or confidence intervals. The Gaussian
 simulation results behind the method support small, parsimonious
 networks, including a hidden layer no larger than the fitted input
-layer. `statnnet()` records this ratio and warns when the hidden layer is
-larger.
+layer. `statnnet()` records this ratio and warns when the hidden layer
+is larger.
 
 Wald p-values and delta-method intervals are approximate and conditional
 on the architecture, penalty, and local optimum. The cited calibration

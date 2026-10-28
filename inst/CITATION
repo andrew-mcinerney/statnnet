@@ -1,0 +1,43 @@
+bibentry(
+  bibtype = "Article",
+  key = "mcinerney2025selection",
+  title = paste(
+    "A Statistical Modelling Approach to Feedforward",
+    "Neural Network Model Selection"
+  ),
+  author = c(
+    person("Andrew", "McInerney"),
+    person("Kevin", "Burke")
+  ),
+  journal = "Statistical Modelling",
+  year = "2025",
+  volume = "25",
+  number = "4",
+  pages = "323--342",
+  doi = "10.1177/1471082X241258261",
+  header = paste(
+    "If you use select_nnet() for input or hidden-layer selection,",
+    "please cite:"
+  )
+)
+
+bibentry(
+  bibtype = "Article",
+  key = "mcinerney2026inference",
+  title = paste(
+    "Investigating Statistical Inference and Covariate Effects",
+    "in Shallow Neural Networks"
+  ),
+  author = c(
+    person("Andrew", "McInerney"),
+    person("Kevin", "Burke")
+  ),
+  journal = "arXiv preprint arXiv:2311.08139",
+  year = "2026",
+  doi = "10.48550/arXiv.2311.08139",
+  url = "https://arxiv.org/abs/2311.08139",
+  header = paste(
+    "If you use covariance estimates, Wald inference, grouped tests,",
+    "or covariate-effect methods, please cite:"
+  )
+)

@@ -26,6 +26,10 @@
 #'
 #' @return An object of class `"statnnet"` containing the original fit,
 #'   reconstructed model information, covariance calculations, and diagnostics.
+#' @references
+#' McInerney, A. and Burke, K. (2026). Investigating Statistical Inference and
+#' Covariate Effects in Shallow Neural Networks. arXiv:2311.08139.
+#' \doi{10.48550/arXiv.2311.08139}.
 #' @examples
 #' data("auto_mpg", package = "statnnet")
 #' example_data <- auto_mpg

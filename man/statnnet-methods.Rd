@@ -77,3 +77,8 @@ coef(model)
 vcov(model)
 head(predict(model))
 }
+\references{
+McInerney, A. and Burke, K. (2026). Investigating Statistical Inference and
+Covariate Effects in Shallow Neural Networks. arXiv:2311.08139.
+\doi{10.48550/arXiv.2311.08139}.
+}

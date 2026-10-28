@@ -44,8 +44,8 @@ selection <- select_nnet(
   mpg ~ cylinders + displacement + horsepower + weight + acceleration +
     model_year + origin,
   data = analysis_data,
-  max_size = 2,
-  n_starts = 3,
+  max_size = 5,
+  n_starts = 5,
   criterion = "BIC",
   maxit = 1000,
   seed = 2026,
@@ -137,3 +137,11 @@ remain available through `predict()`.
 ```{r predict}
 head(predict(model, newdata = analysis_data))
 ```
+
+## Citation
+
+Run `citation("statnnet")` for formatted references and BibTeX entries. If you
+use `select_nnet()` for input or hidden-layer selection, cite McInerney and
+Burke (2025). If you use covariance estimates, Wald summaries, grouped tests,
+or covariate-effect methods, cite McInerney and Burke (2026). Analyses using
+both parts of the package should cite both papers.

@@ -79,3 +79,8 @@ fit <- nnet::nnet(
 model <- statnnet(fit, data = example_data, response = "continuous")
 pce(model, "weight", length_out = 5)
 }
+\references{
+McInerney, A. and Burke, K. (2026). Investigating Statistical Inference and
+Covariate Effects in Shallow Neural Networks. arXiv:2311.08139.
+\doi{10.48550/arXiv.2311.08139}.
+}
