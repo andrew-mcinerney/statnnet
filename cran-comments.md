@@ -8,5 +8,6 @@ The remaining note is expected for a first CRAN submission:
 
 * New submission.
 
-This release refactors the former `interpretnn` package into the narrower
-`statnnet` package and adds information-criterion model selection.
+This is the first CRAN submission of `statnnet`. The package provides
+information-criterion model selection and statistical interpretation methods
+for models fitted with `nnet::nnet()`.

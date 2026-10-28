@@ -8,7 +8,6 @@
 ^\.github$
 ^README\.Rmd$
 ^README\.html$
-^MIGRATION\.md$
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$

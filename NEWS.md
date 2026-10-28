@@ -6,10 +6,8 @@
   prediction, plot, and `selection_path()` methods.
 * `statnnet()` now accepts a model-selection result and records that subsequent
   uncertainty summaries are conditional on the selected model.
-* Renamed `plotnn()` to `plot_network()`.
-* Refactored the package as an `nnet`-only statistical companion.
-* Renamed the constructor from `interpretnn()` to `statnnet()` so it matches
-  the package name. This is a breaking API change.
+* Added `plot_network()` for visualising fitted network weights and
+  inferential annotations.
 * `statnnet()` now retains and validates an existing fitted `nnet` object.
 * Added explicit objective, Hessian, covariance, convergence, and conditioning
   diagnostics.
@@ -19,4 +17,3 @@
 * Added structured grouped Wald summaries and partial covariate effects.
 * Replaced the legacy Boston data and examples with the openly licensed Auto
   MPG data, including a reproducible data-preparation script and provenance.
-* Removed other neural-network backends.
