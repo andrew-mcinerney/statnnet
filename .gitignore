@@ -5,27 +5,12 @@
 inst/doc
 /doc/
 /Meta/
+/Library/
+/Outputs/
 
-# R Journal paper: reproducible rendering intermediates
-/paper/*_cache/
-/paper/*_files/
-/paper/figure/
-/paper/*.aux
-/paper/*.bbl
-/paper/*.blg
-/paper/*.brf
-/paper/*.log
-/paper/*.out
-/paper/Rplots.pdf
-/paper/new-draft.R
-/paper/new-draft.html
-/paper/new-draft.tex
-/paper/session-info.txt
-/paper/new-draft_files/
-/paper/new_draft_files/
-/paper/simulations/*/results/
-/paper/simulations/*/runtime-benchmark-*.csv
-/submission/statnnet-rjournal/
+# Local research and submission material
+/paper/
+/submission/
 /tmp/
 /README.html
 /statnnet_*.tar.gz
