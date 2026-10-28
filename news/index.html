@@ -38,17 +38,17 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="statnnet-010">statnnet 0.1.0<a class="anchor" aria-label="anchor" href="#statnnet-010"></a></h2>
-<ul><li>Added <code><a href="../reference/select_nnet.html">select_nnet()</a></code> for information-criterion selection of input terms and hidden-layer size using multiple <code>nnet</code> initialisations.</li>
-<li>Added <code>statnnet_selection</code> objects with print, summary, coefficient, prediction, plot, and <code><a href="../reference/selection_path.html">selection_path()</a></code> methods.</li>
+<ul><li>Provides <code><a href="../reference/select_nnet.html">select_nnet()</a></code> for information-criterion selection of input terms and hidden-layer size using multiple <code>nnet</code> initialisations.</li>
+<li>Provides <code>statnnet_selection</code> objects with print, summary, coefficient, prediction, plot, and <code><a href="../reference/selection_path.html">selection_path()</a></code> methods.</li>
 <li>
-<code><a href="../reference/statnnet.html">statnnet()</a></code> now accepts a model-selection result and records that subsequent uncertainty summaries are conditional on the selected model.</li>
-<li>Added <code><a href="../reference/plot_network.html">plot_network()</a></code> for visualising fitted network weights and inferential annotations.</li>
+<code><a href="../reference/statnnet.html">statnnet()</a></code> accepts a model-selection result and records that subsequent uncertainty summaries are conditional on the selected model.</li>
+<li>Provides <code><a href="../reference/plot_network.html">plot_network()</a></code> for visualising fitted network weights and inferential annotations.</li>
 <li>
-<code><a href="../reference/statnnet.html">statnnet()</a></code> now retains and validates an existing fitted <code>nnet</code> object.</li>
-<li>Added explicit objective, Hessian, covariance, convergence, and conditioning diagnostics.</li>
-<li>Added inferential-scope diagnostics: <code><a href="../reference/statnnet.html">statnnet()</a></code> now warns when hidden nodes outnumber fitted input nodes and flags binary-response calibration as unvalidated rather than equating numerical invertibility with calibration.</li>
-<li>Added structured grouped Wald summaries and partial covariate effects.</li>
-<li>Replaced the legacy Boston data and examples with the openly licensed Auto MPG data, including a reproducible data-preparation script and provenance.</li>
+<code><a href="../reference/statnnet.html">statnnet()</a></code> retains and validates the fitted <code>nnet</code> object.</li>
+<li>Reports explicit objective, Hessian, covariance, convergence, and conditioning diagnostics.</li>
+<li>Reports inferential-scope diagnostics: <code><a href="../reference/statnnet.html">statnnet()</a></code> warns when hidden nodes outnumber fitted input nodes and flags binary-response calibration as unvalidated rather than equating numerical invertibility with calibration.</li>
+<li>Provides structured grouped Wald summaries and partial covariate effects.</li>
+<li>Includes the openly licensed Auto MPG data, a reproducible data-preparation script, and data provenance.</li>
 </ul></div>
   </main></div>
 
