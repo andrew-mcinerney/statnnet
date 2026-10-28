@@ -125,17 +125,11 @@ using both parts of the package should cite both papers.
 ## Inference and diagnostics
 
 When a covariance matrix is available, the fitted Hessian has passed the
-package’s numerical checks. This alone does not establish the
-calibration of Wald tests or confidence intervals. The Gaussian
-simulation results behind the method support small, parsimonious
-networks, including a hidden layer no larger than the fitted input
-layer.
+package’s numerical checks. The method is intended for small,
+parsimonious networks.
 [`statnnet()`](https://andrew-mcinerney.github.io/statnnet/reference/statnnet.md)
-records this ratio and warns when the hidden layer is larger.
+records the hidden-to-input size ratio and reports an architecture
+diagnostic when the hidden layer is larger than the fitted input layer.
 
 Wald p-values and delta-method intervals are approximate and conditional
-on the architecture, penalty, and local optimum. The cited calibration
-studies concern continuous Gaussian responses. Binary-response
-calculations are provided for exploring a fitted response surface, but
-their frequentist calibration has not been established by the package
-authors.
+on the architecture, penalty, and local optimum.

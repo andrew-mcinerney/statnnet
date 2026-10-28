@@ -173,17 +173,12 @@ plotted.</p>
 selected <code>nnet</code> fit and reports whether covariance-based
 summaries are numerically available. Selection is unpenalised, and a
 converged fit may still have poorly conditioned curvature.</p>
-<p>Numerical availability does not show that Wald p-values or
-delta-method intervals have their nominal coverage. The Gaussian
-simulations motivating the method favour parsimonious networks,
-including a hidden layer no larger than the fitted input layer.
-<code><a href="../reference/statnnet.html">statnnet()</a></code> records this comparison and warns when there are
-more hidden nodes than input nodes. The inferential quantities remain
-approximate and conditional on the setting studied.</p>
-<p>The package can calculate the same summaries for supported
-binary-response fits, but the package authors have not established their
-frequentist calibration; binary Wald tests and intervals should
-therefore be treated as exploratory.</p>
+<p>The method is intended for small, parsimonious networks.
+<code><a href="../reference/statnnet.html">statnnet()</a></code> records the hidden-to-input size ratio and
+reports an architecture diagnostic when there are more hidden nodes than
+input nodes. Wald p-values and delta-method intervals are approximate
+and conditional on the fitted architecture, penalty, and local
+optimum.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">selected_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/warning.html" class="external-link">suppressWarnings</a></span><span class="op">(</span><span class="fu"><a href="../reference/statnnet.html">statnnet</a></span><span class="op">(</span><span class="va">selection</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">selected_model</span></span>
